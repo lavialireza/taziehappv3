@@ -1,5 +1,10 @@
 @echo off
 setlocal
+where gradle >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+  gradle %*
+  exit /b %ERRORLEVEL%
+)
 set ROOT_DIR=%~dp0
 set CACHE_DIR=%USERPROFILE%\.gradle\wrapper\dists\tazieh-gradle-8.6
 set GRADLE_HOME=%CACHE_DIR%\gradle-8.6

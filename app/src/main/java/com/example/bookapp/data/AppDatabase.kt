@@ -306,7 +306,7 @@ internal suspend fun mergeContentFromJson(db: AppDatabase, jsonText: String) {
                             db.sectionFtsDao().deleteBySection(existingSection.id)
                             db.sectionFtsDao().insert(SectionFts(existingSection.id, normalizePersian(sectionTitle), normalizePersian(newContent)))
                         } else {
-                            val newId = db.sectionDao().insert(SectionEntity(roleId, si, sectionTitle, newContent, newAudio, sectionKey))
+                            val newId = db.sectionDao().insert(SectionEntity(roleId = roleId, orderIndex = si, title = sectionTitle, content = newContent, audioUrl = newAudio, stableKey = sectionKey))
                             db.sectionFtsDao().insert(SectionFts(newId, normalizePersian(sectionTitle), normalizePersian(newContent)))
                         }
                     }

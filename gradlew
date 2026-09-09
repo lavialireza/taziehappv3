@@ -1,8 +1,9 @@
 #!/bin/sh
-# Gradle Wrapper bootstrap for TaziehApp.
-# It downloads the pinned Gradle distribution from gradle-wrapper.properties,
-# then delegates all arguments to that exact Gradle version.
 set -eu
+# Lightweight project wrapper fallback. CI uses gradle/actions/setup-gradle.
+if command -v gradle >/dev/null 2>&1; then
+  exec gradle "$@"
+fi
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 DIST_URL="https://services.gradle.org/distributions/gradle-8.6-bin.zip"
 CACHE_DIR="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/tazieh-gradle-8.6"
@@ -16,7 +17,7 @@ if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
     elif command -v wget >/dev/null 2>&1; then
       wget -O "$ZIP" "$DIST_URL"
     else
-      echo "curl یا wget برای دریافت Gradle لازم است." >&2
+      echo "Gradle 8.6 is not installed and curl/wget is unavailable." >&2
       exit 1
     fi
   fi
