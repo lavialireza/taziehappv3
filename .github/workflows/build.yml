@@ -1,32 +1,79 @@
+```yaml
 name: Build APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # دریافت کد پروژه
       - name: دریافت کد پروژه
         uses: actions/checkout@v4
 
+      # نصب Java 17
       - name: نصب Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
 
+      # آماده‌سازی Gradle
       - name: نصب Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: ساخت APK (Debug)
-        run: gradle assembleDebug
+      # اطمینان از executable بودن Gradle Wrapper
+      - name: اصلاح دسترسی Gradle Wrapper
+        run: chmod +x ./gradlew
 
-      - name: بارگذاری APK به‌عنوان خروجی قابل دانلود
+      # بررسی Gradle
+      - name: بررسی Gradle
+        run: ./gradlew --version
+
+      # ساخت APK
+      - name: ساخت APK (Debug)
+        run: ./gradlew assembleDebug --stacktrace
+
+      # بررسی وجود APK
+      - name: بررسی فایل APK
+        run: |
+          ls -lh app/build/outputs/apk/debug/
+          test -f app/build/outputs/apk/debug/app-debug.apk
+
+      # آپلود Artifact
+      - name: بارگذاری APK به‌عنوان Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      # ساخت Release و قرار دادن APK داخل آن
+      - name: ایجاد GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "build-${{ github.run_number }}"
+          name: "Tazieh App Build ${{ github.run_number }}"
+          body: |
+            ## Tazieh App
+
+            نسخه آزمایشی Debug
+
+            - Build: ${{ github.run_number }}
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+
+            فایل APK از قسمت Assets قابل دریافت است.
+          files: app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+          make_latest: false
+```
