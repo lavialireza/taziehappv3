@@ -9,7 +9,8 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "fields")
 data class FieldEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val title: String
+    val title: String,
+    val stableKey: String = ""
 )
 
 // سطح ۲: تعزیه‌ها (عاشورا، بازار شام و ...) - متعلق به یک زمینه
@@ -26,7 +27,11 @@ data class FieldEntity(
 data class TaziehEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val fieldId: Long,
-    val title: String
+    val title: String,
+    // مشخصات نویسنده/گردآورنده این تعزیه (اختیاری)؛ با هر بروزرسانی محتوا قابل به‌روزرسانی است
+    val author: String? = null,
+    val authorEmail: String? = null,
+    val stableKey: String = ""
 )
 
 // سطح ۳: نقش‌ها (شمر، امام، یزید و ...) - متعلق به یک تعزیه
@@ -46,7 +51,8 @@ data class RoleEntity(
     val title: String,
     // ترتیب نمایش نقش در فهرست/نمایش‌نامه؛ پیش‌فرض بر اساس ترتیب ورود از متن اصلی
     // (همان ترتیبی که در فایل Word/JSON آمده)، ولی از داخل برنامه هم قابل تغییر است.
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val stableKey: String = ""
 )
 
 // سطح ۴: بخش‌ها (ورود، ساقی‌نامه، شهادت و ...) - متعلق به یک نقش، شامل متن اشعار
@@ -69,7 +75,8 @@ data class SectionEntity(
     // آدرس فایل صوتی واقعی (ضبط‌شده) برای این بخش، در صورت وجود؛
     // می‌تواند یک URL کامل باشد یا مسیر نسبی داخل assets/audio (مثلاً "audio/karbala_shahadat.mp3").
     // اگر خالی/نال باشد، پخش با صدای مصنوعی (TTS) انجام می‌شود.
-    val audioUrl: String? = null
+    val audioUrl: String? = null,
+    val stableKey: String = ""
 )
 
 // پاورقی: توضیح یک واژه/عبارت خاص در یک بخش (معنی لغت، توضیح مختصر، منبع و ...)

@@ -5,117 +5,71 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * تست‌های واحد برای منطق ادغام تدریجی محتوا (mergeContentFromJson):
- *  - وقتی زمینه/تعزیه/نقشی با همان عنوان از قبل هست، رکورد تکراری ساخته نمی‌شود.
- *  - بخش‌های (sections) هر فایل جدید همیشه با ادامه‌ی شماره‌ترتیب به انتهای همان نقش اضافه می‌شوند.
- */
 @RunWith(RobolectricTestRunner::class)
 class ContentMergeTest {
-
     private lateinit var db: AppDatabase
 
     private val sampleJson = """
-        [
-          {
-            "title": "اصفهان",
-            "taziehs": [
-              {
-                "title": "عاشورا",
-                "roles": [
-                  {
-                    "title": "شمر",
-                    "sections": [
-                      {"title": "ورود", "content": "بیت اول"},
-                      {"title": "شهادت", "content": "بیت دوم"}
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        [{
+          "id":"field-1","title":"اصفهان","taziehs":[{
+            "id":"tazieh-1","title":"عاشورا","complete":true,"roles":[{
+              "id":"role-1","title":"شمر","sections":[
+                {"id":"sec-1","title":"ورود","content":"بیت اول"},
+                {"id":"sec-2","title":"شهادت","content":"بیت دوم"}
+              ]
+            }]
+          }]
+        }]
     """.trimIndent()
 
-    @Before
-    fun setUp() {
+    @Before fun setUp() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    }
+    @After fun tearDown() { db.close() }
+
+    @Test fun `same complete file twice does not duplicate and preserves order`() = runTest {
+        mergeContentFromJson(db, sampleJson)
+        mergeContentFromJson(db, sampleJson)
+        val role = db.roleDao().getByTazieh(db.taziehDao().getAll().first().id).first()
+        val sections = db.sectionDao().getByRole(role.id)
+        assertEquals(2, sections.size)
+        assertEquals(listOf(0,1), sections.map { it.orderIndex })
     }
 
-    @After
-    fun tearDown() {
-        db.close()
+    @Test fun `changed content is updated without creating duplicate`() = runTest {
+        mergeContentFromJson(db, sampleJson)
+        val updated = sampleJson.replace("بیت اول", "بیت اصلاح‌شده")
+        mergeContentFromJson(db, updated)
+        val role = db.roleDao().getByTazieh(db.taziehDao().getAll().first().id).first()
+        val sections = db.sectionDao().getByRole(role.id)
+        assertEquals(2, sections.size)
+        assertEquals("بیت اصلاح‌شده", sections.first { it.stableKey == "sec-1" }.content)
     }
 
-    @Test
-    fun `merging same file twice does not duplicate field, tazieh or role`() = runTest {
+    @Test fun `complete update removes sections missing from source`() = runTest {
         mergeContentFromJson(db, sampleJson)
-        mergeContentFromJson(db, sampleJson)
-
-        assertEquals(1, db.fieldDao().getAll().size)
-        assertEquals(1, db.taziehDao().getAll().size)
-
-        val fieldId = db.fieldDao().getAll().first().id
-        val taziehId = db.taziehDao().getByField(fieldId).first().id
-        val roles = db.roleDao().getByTazieh(taziehId)
-        assertEquals(1, roles.size)
+        val reduced = sampleJson.replace(",\n                {\"id\":\"sec-2\",\"title\":\"شهادت\",\"content\":\"بیت دوم\"}", "")
+        mergeContentFromJson(db, reduced)
+        val role = db.roleDao().getByTazieh(db.taziehDao().getAll().first().id).first()
+        assertEquals(listOf("sec-1"), db.sectionDao().getByRole(role.id).map { it.stableKey })
     }
 
-    @Test
-    fun `merging same file twice appends sections in order instead of skipping`() = runTest {
+    @Test fun `reordering keeps stable section identities`() = runTest {
         mergeContentFromJson(db, sampleJson)
-        mergeContentFromJson(db, sampleJson)
-
-        val fieldId = db.fieldDao().getAll().first().id
-        val taziehId = db.taziehDao().getByField(fieldId).first().id
-        val roleId = db.roleDao().getByTazieh(taziehId).first().id
-        val sections = db.sectionDao().getByRole(roleId)
-
-        // هر بار ۲ بخش داشتیم؛ بعد از دو بار ادغام باید ۴ بخش با orderIndex پیوسته ۰..۳ داشته باشیم
-        assertEquals(4, sections.size)
-        assertEquals(listOf(0, 1, 2, 3), sections.map { it.orderIndex })
-    }
-
-    @Test
-    fun `new role added to an existing tazieh does not duplicate the tazieh`() = runTest {
-        mergeContentFromJson(db, sampleJson)
-
-        val secondRoleJson = """
-            [
-              {
-                "title": "اصفهان",
-                "taziehs": [
-                  {
-                    "title": "عاشورا",
-                    "roles": [
-                      {
-                        "title": "امام حسین",
-                        "sections": [
-                          {"title": "ورود", "content": "بیت تازه"}
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-        """.trimIndent()
-        mergeContentFromJson(db, secondRoleJson)
-
-        assertEquals(1, db.fieldDao().getAll().size)
-        assertEquals(1, db.taziehDao().getAll().size)
-
-        val fieldId = db.fieldDao().getAll().first().id
-        val taziehId = db.taziehDao().getByField(fieldId).first().id
-        val roles = db.roleDao().getByTazieh(taziehId)
-        assertEquals(2, roles.size) // شمر (قبلی) + امام حسین (جدید)
+        val reordered = sampleJson.replace(
+            "{\"id\":\"sec-1\",\"title\":\"ورود\",\"content\":\"بیت اول\"},\n                {\"id\":\"sec-2\",\"title\":\"شهادت\",\"content\":\"بیت دوم\"}",
+            "{\"id\":\"sec-2\",\"title\":\"شهادت\",\"content\":\"بیت دوم\"},\n                {\"id\":\"sec-1\",\"title\":\"ورود\",\"content\":\"بیت اول\"}"
+        )
+        mergeContentFromJson(db, reordered)
+        val role = db.roleDao().getByTazieh(db.taziehDao().getAll().first().id).first()
+        assertEquals(listOf("sec-2", "sec-1"), db.sectionDao().getByRole(role.id).map { it.stableKey })
+        assertNotEquals(db.sectionDao().getByStableKey("sec-1")?.id, db.sectionDao().getByStableKey("sec-2")?.id)
     }
 }

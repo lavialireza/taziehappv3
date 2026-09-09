@@ -21,7 +21,7 @@ import org.json.JSONObject
 suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
     val root = JSONObject()
     root.put("app", "taziehapp")
-    root.put("backupVersion", 1)
+    root.put("backupVersion", 2)
 
     val notesArr = JSONArray()
     db.noteDao().getAll().forEach { note ->
@@ -33,7 +33,10 @@ suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
     root.put("notes", notesArr)
 
     val bookmarksArr = JSONArray()
-    Prefs.getBookmarks(context).forEach { bookmarksArr.put(it) }
+    Prefs.getBookmarks(context).forEach { id ->
+        val section = db.sectionDao().getById(id)
+        if (section != null) bookmarksArr.put(section.stableKey)
+    }
     root.put("bookmarks", bookmarksArr)
 
     val footnotesArr = JSONArray()
@@ -44,6 +47,7 @@ suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
                 db.sectionDao().getByRole(role.id).forEach { section ->
                     db.footnoteDao().getBySection(section.id).forEach { fn ->
                         footnotesArr.put(JSONObject().apply {
+                            put("sectionKey", section.stableKey)
                             put("sectionId", fn.sectionId)
                             put("term", fn.term)
                             put("explanation", fn.explanation)
@@ -57,8 +61,12 @@ suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
 
     val myRolesArr = JSONArray()
     Prefs.getAllMyRoles(context).forEach { (taziehId, roleId) ->
-        myRolesArr.put(JSONObject().apply {
-            put("taziehId", taziehId)
+        val tazieh = db.taziehDao().getById(taziehId)
+        val role = db.roleDao().getById(roleId)
+        if (tazieh != null && role != null) myRolesArr.put(JSONObject().apply {
+            put("taziehKey", tazieh.stableKey)
+            put("roleKey", role.stableKey)
+            put("taziehId", taziehId) // سازگاری با Backupهای قدیمی
             put("roleId", roleId)
         })
     }
@@ -70,12 +78,15 @@ suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
             db.dialogueDao().getByTazieh(tazieh.id).forEach { dialogue ->
                 val turnsArr = JSONArray()
                 db.dialogueTurnDao().getByDialogue(dialogue.id).forEach { turn ->
+                    val section = db.sectionDao().getById(turn.sectionId)
                     turnsArr.put(JSONObject().apply {
+                        put("sectionKey", section.stableKey)
                         put("sectionId", turn.sectionId)
                         put("orderIndex", turn.orderIndex)
                     })
                 }
                 dialoguesArr.put(JSONObject().apply {
+                    put("taziehKey", tazieh.stableKey)
                     put("taziehId", dialogue.taziehId)
                     put("title", dialogue.title)
                     put("turns", turnsArr)
@@ -88,23 +99,37 @@ suspend fun buildBackupJson(context: Context, db: AppDatabase): String {
     return root.toString(2)
 }
 
-/** فایل پشتیبان JSON را در مسیری که کاربر انتخاب کرده (ابری یا حافظه گوشی) می‌نویسد */
-suspend fun writeBackupToUri(context: Context, db: AppDatabase, uri: Uri) {
+/**
+ * فایل پشتیبان JSON را در مسیری که کاربر انتخاب کرده (ابری یا حافظه گوشی) می‌نویسد.
+ * اگر رمز عبور داده شود، محتوا قبل از نوشتن با AES-GCM رمزگذاری می‌شود (چون
+ * فایل پشتیبان شامل یادداشت‌های شخصی کاربر است).
+ */
+suspend fun writeBackupToUri(context: Context, db: AppDatabase, uri: Uri, password: String? = null) {
     val json = buildBackupJson(context, db)
-    context.contentResolver.openOutputStream(uri)?.use { out ->
-        out.write(json.toByteArray(Charsets.UTF_8))
+    val bytes = if (password.isNullOrBlank()) {
+        json.toByteArray(Charsets.UTF_8)
+    } else {
+        encryptBackupText(json, password)
     }
+    context.contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
 }
 
 /**
- * پشتیبان JSON را از مسیر انتخابی کاربر می‌خواند و همه‌چیز را بازیابی می‌کند.
+ * پشتیبان را از مسیر انتخابی کاربر می‌خواند و همه‌چیز را بازیابی می‌کند.
  * این عملیات افزودنی است (مثل بقیه‌ی برنامه) نه جایگزینی؛ چیزی که همین الان
  * روی گوشی هست پاک نمی‌شود، فقط موارد داخل فایل پشتیبان اضافه/به‌روزرسانی می‌شوند.
+ * اگر فایل با رمز ذخیره شده باشد، باید همان رمز را برای بازیابی وارد کنید.
  */
-suspend fun restoreBackupFromUri(context: Context, db: AppDatabase, uri: Uri): Result<Unit> {
+suspend fun restoreBackupFromUri(context: Context, db: AppDatabase, uri: Uri, password: String? = null): Result<Unit> {
     return try {
-        val text = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: return Result.failure(IllegalStateException("فایل خوانده نشد"))
+
+        val text = if (password.isNullOrBlank()) {
+            String(bytes, Charsets.UTF_8)
+        } else {
+            decryptBackupBytes(bytes, password)
+        }
         val root = JSONObject(text)
 
         val notesArr = root.optJSONArray("notes") ?: JSONArray()
@@ -117,34 +142,55 @@ suspend fun restoreBackupFromUri(context: Context, db: AppDatabase, uri: Uri): R
 
         val bookmarksArr = root.optJSONArray("bookmarks") ?: JSONArray()
         for (i in 0 until bookmarksArr.length()) {
-            val sectionId = bookmarksArr.getLong(i)
-            if (!Prefs.isBookmarked(context, sectionId)) Prefs.toggleBookmark(context, sectionId)
+            val value = bookmarksArr.getString(i)
+            val sectionId = db.sectionDao().getByStableKey(value)?.id
+                ?: value.toLongOrNull()
+            if (sectionId != null && db.sectionDao().getById(sectionId) != null && !Prefs.isBookmarked(context, sectionId)) {
+                Prefs.toggleBookmark(context, sectionId)
+            }
         }
 
         val footnotesArr = root.optJSONArray("footnotes") ?: JSONArray()
         for (i in 0 until footnotesArr.length()) {
             val o = footnotesArr.getJSONObject(i)
-            db.footnoteDao().insert(
-                FootnoteEntity(sectionId = o.getLong("sectionId"), term = o.getString("term"), explanation = o.getString("explanation"))
-            )
+            val sectionId = o.optString("sectionKey", "").takeIf { it.isNotBlank() }?.let { db.sectionDao().getByStableKey(it)?.id }
+                ?: o.optLong("sectionId", -1L)
+            if (sectionId > 0 && db.sectionDao().getById(sectionId) != null) {
+                db.footnoteDao().insert(
+                    FootnoteEntity(sectionId = sectionId, term = o.getString("term"), explanation = o.getString("explanation"))
+                )
+            }
         }
 
         val myRolesArr = root.optJSONArray("myRoles") ?: JSONArray()
         for (i in 0 until myRolesArr.length()) {
             val o = myRolesArr.getJSONObject(i)
-            Prefs.setMyRole(context, o.getLong("taziehId"), o.getLong("roleId"))
+            val tazieh = o.optString("taziehKey", "").takeIf { it.isNotBlank() }?.let { db.taziehDao().getByStableKey(it) }
+            val role = o.optString("roleKey", "").takeIf { it.isNotBlank() }?.let { db.roleDao().getByStableKey(it) }
+            val taziehId = tazieh?.id ?: o.optLong("taziehId", -1L)
+            val roleId = role?.id ?: o.optLong("roleId", -1L)
+            if (taziehId > 0 && roleId > 0 && db.roleDao().getById(roleId).taziehId == taziehId) {
+                Prefs.setMyRole(context, taziehId, roleId)
+            }
         }
 
         val dialoguesArr = root.optJSONArray("dialogues") ?: JSONArray()
         for (i in 0 until dialoguesArr.length()) {
             val o = dialoguesArr.getJSONObject(i)
-            val dialogueId = db.dialogueDao().insert(DialogueEntity(taziehId = o.getLong("taziehId"), title = o.getString("title")))
+            val tazieh = o.optString("taziehKey", "").takeIf { it.isNotBlank() }?.let { db.taziehDao().getByStableKey(it) }
+            val taziehId = tazieh?.id ?: o.optLong("taziehId", -1L)
+            if (taziehId <= 0) continue
+            val dialogueId = db.dialogueDao().insert(DialogueEntity(taziehId = taziehId, title = o.getString("title")))
             val turnsArr = o.getJSONArray("turns")
             for (j in 0 until turnsArr.length()) {
                 val t = turnsArr.getJSONObject(j)
-                db.dialogueTurnDao().insert(
-                    DialogueTurnEntity(dialogueId = dialogueId, sectionId = t.getLong("sectionId"), orderIndex = t.getInt("orderIndex"))
-                )
+                val sectionId = t.optString("sectionKey", "").takeIf { it.isNotBlank() }?.let { db.sectionDao().getByStableKey(it)?.id }
+                    ?: t.optLong("sectionId", -1L)
+                if (sectionId > 0 && db.sectionDao().getById(sectionId) != null) {
+                    db.dialogueTurnDao().insert(
+                        DialogueTurnEntity(dialogueId = dialogueId, sectionId = sectionId, orderIndex = t.getInt("orderIndex"))
+                    )
+                }
             }
         }
 

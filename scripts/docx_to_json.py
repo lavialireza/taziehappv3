@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import json
+import hashlib
 from docx import Document
 
 # پوشه‌ی پیش‌فرض محتوای تدریجی برنامه (نسبت به مسیر همین اسکریپت)
@@ -64,6 +65,9 @@ def convert(docx_path: str) -> list:
             current_role = current_section = None
 
         elif style == "Heading 3":
+            if current_field is None:
+                current_field = {"title": "بدون زمینه", "taziehs": []}
+                fields.append(current_field)
             if current_tazieh is None:
                 current_tazieh = {"title": "بدون تعزیه", "roles": []}
                 current_field["taziehs"].append(current_tazieh)
@@ -86,6 +90,16 @@ def convert(docx_path: str) -> list:
                 else:
                     current_section["content"] = text
 
+    # شناسه‌های پایدار مستقل از ID دیتابیس؛ برای Update/Backup/DeepLink
+    for field in fields:
+        field["id"] = f"field:{field['title']}"
+        for tazieh in field["taziehs"]:
+            tazieh["id"] = f"tazieh:{field['id']}:{tazieh['title']}"
+            tazieh["complete"] = True
+            for role in tazieh["roles"]:
+                role["id"] = f"role:{tazieh['id']}:{role['title']}"
+                for index, section in enumerate(role["sections"]):
+                    section["id"] = f"section:{role['id']}:{section['title']}"
     return fields
 
 

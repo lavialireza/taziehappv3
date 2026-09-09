@@ -106,7 +106,7 @@ object Prefs {
     /** یکی از مقادیر "titr"، "serif"، "sans"، "cursive" */
     fun getFontChoice(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_FONT_CHOICE, "titr") ?: "titr"
+        return prefs.getString(KEY_FONT_CHOICE, "serif") ?: "serif"
     }
 
     fun setFontChoice(context: Context, value: String) {
@@ -225,17 +225,16 @@ object Prefs {
 
     private const val KEY_PROCESSED_CONTENT_FILES = "processed_content_files"
 
-    /** نام فایل‌های JSON محتوایی که قبلاً در دیتابیس ادغام شده‌اند */
+    /** کلیدهای فایل‌های JSON محتوایی که قبلاً در دیتابیس ادغام شده‌اند (هر کلید: "اسم‌فایل:هش‌محتوا") */
     fun getProcessedContentFiles(context: Context): Set<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getStringSet(KEY_PROCESSED_CONTENT_FILES, emptySet()) ?: emptySet()
     }
 
-    fun addProcessedContentFiles(context: Context, fileNames: Collection<String>) {
+    /** کل فهرست را با فهرست تازه جایگزین می‌کند (نه اضافه‌کردن) */
+    fun setProcessedContentFiles(context: Context, keys: Set<String>) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val current = getProcessedContentFiles(context).toMutableSet()
-        current.addAll(fileNames)
-        prefs.edit().putStringSet(KEY_PROCESSED_CONTENT_FILES, current).apply()
+        prefs.edit().putStringSet(KEY_PROCESSED_CONTENT_FILES, keys).apply()
     }
 
     private const val KEY_LINE_SPACING = "line_spacing"

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +45,7 @@ fun TextScreen(
     isBookmarked: Boolean,
     onToggleBookmark: () -> Unit,
     sectionId: Long? = null,
+    sectionStableKey: String = "",
     audioUrl: String? = null,
     relatedSections: List<SearchResult> = emptyList(),
     onRelatedClick: (SearchResult) -> Unit = {},
@@ -59,9 +61,29 @@ fun TextScreen(
     onNextSection: () -> Unit = {},
     onAttachAudio: (android.net.Uri) -> Unit = {},
     onRemoveAudio: () -> Unit = {},
+    fieldTitle: String? = null,
+    taziehTitle: String? = null,
+    roleTitle: String? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    var immersive by remember { mutableStateOf(false) }
+
+    fun applyImmersive(on: Boolean) {
+        val window = activity?.window ?: return
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        if (on) {
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { applyImmersive(false) } // با خروج از صفحه، نوارهای سیستم برمی‌گردند
+    }
+
     val lineSpacing = remember { Prefs.getLineSpacing(context) }
     var isSpeaking by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
@@ -115,6 +137,7 @@ fun TextScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
+            if (!immersive) {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = { Text(title) },
@@ -160,6 +183,14 @@ fun TextScreen(
                         Icon(Icons.Filled.MoreVert, contentDescription = "بیشتر")
                     }
                     DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (immersive) "خروج از حالت تمام‌صفحه" else "حالت مطالعه بدون مزاحمت (تمام‌صفحه)") },
+                            onClick = {
+                                moreExpanded = false
+                                immersive = !immersive
+                                applyImmersive(immersive)
+                            }
+                        )
                         if (sectionId != null) {
                             DropdownMenuItem(
                                 text = { Text("برچسب شخصی") },
@@ -177,7 +208,7 @@ fun TextScreen(
                         if (sectionId != null) {
                             DropdownMenuItem(
                                 text = { Text("اشتراک‌گذاری لینک مستقیم این بخش") },
-                                onClick = { moreExpanded = false; shareSectionLink(context, title, sectionId) }
+                                onClick = { moreExpanded = false; shareSectionLink(context, title, sectionStableKey.ifBlank { sectionId.toString() }) }
                             )
                         }
                         DropdownMenuItem(
@@ -199,11 +230,13 @@ fun TextScreen(
                     }
                 }
             )
+            }
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(if (immersive) Modifier.clickable { immersive = false; applyImmersive(false) } else Modifier)
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
@@ -215,6 +248,21 @@ fun TextScreen(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            if (!immersive && (fieldTitle != null || taziehTitle != null || roleTitle != null)) {
+                val breadcrumb = listOfNotNull(fieldTitle, taziehTitle, roleTitle).joinToString(" ← ")
+                val verseCount = content.lineSequence().count { it.isNotBlank() }
+                Text(
+                    breadcrumb,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "$verseCount بیت",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             if (!tag.isNullOrBlank()) {
                 AssistChip(onClick = { showTagDialog = true }, label = { Text(tag!!) })
                 Spacer(Modifier.height(8.dp))
@@ -328,11 +376,11 @@ private fun shareText(context: Context, title: String, content: String) {
     context.startActivity(Intent.createChooser(intent, "اشتراک‌گذاری"))
 }
 
-private fun shareSectionLink(context: Context, title: String, sectionId: Long) {
+private fun shareSectionLink(context: Context, title: String, stableKey: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, title)
-        putExtra(Intent.EXTRA_TEXT, "«$title» را در اپلیکیشن تعزیه ببینید:\ntaziehapp://section/$sectionId")
+        putExtra(Intent.EXTRA_TEXT, "«$title» را در اپلیکیشن تعزیه ببینید:\ntaziehapp://section/${android.net.Uri.encode(stableKey)}")
     }
     context.startActivity(Intent.createChooser(intent, "اشتراک‌گذاری لینک"))
 }
@@ -481,6 +529,9 @@ fun TextPagerScreen(
     onOpenSettings: () -> Unit = {},
     onAttachAudio: (sectionId: Long, uri: android.net.Uri) -> Unit = { _, _ -> },
     onRemoveAudio: (sectionId: Long) -> Unit = {},
+    fieldTitle: String? = null,
+    taziehTitle: String? = null,
+    roleTitle: String? = null,
     onBack: () -> Unit
 ) {
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(
@@ -494,7 +545,14 @@ fun TextPagerScreen(
         }
     }
 
-    androidx.compose.foundation.pager.HorizontalPager(state = pagerState) { page ->
+    Column(Modifier.fillMaxSize()) {
+        if (sections.isNotEmpty()) {
+            LinearProgressIndicator(
+                progress = { (pagerState.currentPage + 1).toFloat() / sections.size.toFloat() },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        androidx.compose.foundation.pager.HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
         val section = sections[page]
         Column(Modifier.fillMaxSize()) {
             TextScreen(
@@ -516,8 +574,12 @@ fun TextPagerScreen(
                 },
                 onAttachAudio = { uri -> onAttachAudio(section.id, uri) },
                 onRemoveAudio = { onRemoveAudio(section.id) },
+                fieldTitle = fieldTitle,
+                taziehTitle = taziehTitle,
+                roleTitle = roleTitle,
                 onBack = onBack
             )
+        }
         }
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
@@ -43,6 +44,8 @@ fun MainMenuScreen(
     onOpenSettings: () -> Unit,
     onOpenVersion: () -> Unit,
     onOpenChangelog: () -> Unit,
+    onOpenGlossary: () -> Unit,
+    onOpenMuharramCalendar: () -> Unit,
     onItemClick: (SearchResult) -> Unit
 ) {
     Scaffold(
@@ -109,6 +112,10 @@ fun MainMenuScreen(
             MenuCard("ورژن برنامه", null, onOpenVersion)
             Spacer(Modifier.height(10.dp))
             MenuCard("چه چیزی جدید است؟", null, onOpenChangelog)
+            Spacer(Modifier.height(10.dp))
+            MenuCard("دیکشنری اصطلاحات تعزیه", Icons.AutoMirrored.Filled.MenuBook, onOpenGlossary)
+            Spacer(Modifier.height(10.dp))
+            MenuCard("تقویم محرم", null, onOpenMuharramCalendar)
 
             if (recentItems.isNotEmpty()) {
                 Spacer(Modifier.height(20.dp))

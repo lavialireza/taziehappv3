@@ -39,9 +39,26 @@ fun RehearsalScreen(
 ) {
     var currentIndex by remember { mutableStateOf(startIndex.coerceIn(0, (sections.size - 1).coerceAtLeast(0))) }
     var revealedLines by remember(currentIndex) { mutableStateOf(0) }
+    var autoPlay by remember { mutableStateOf(false) }
+    var autoSpeedSeconds by remember { mutableStateOf(3) }
 
     val section = sections.getOrNull(currentIndex)
     val lines = remember(section) { section?.content?.split("\n")?.filter { it.isNotBlank() } ?: emptyList() }
+
+    // حالت «خودخوان»: هر چند ثانیه یک‌بار خط بعدی خودکار آشکار می‌شود، بدون لمس دستی
+    LaunchedEffect(autoPlay, currentIndex, autoSpeedSeconds) {
+        if (!autoPlay) return@LaunchedEffect
+        while (revealedLines < lines.size) {
+            kotlinx.coroutines.delay(autoSpeedSeconds * 1000L)
+            if (revealedLines < lines.size) revealedLines++
+        }
+        if (currentIndex < sections.size - 1) {
+            kotlinx.coroutines.delay(autoSpeedSeconds * 1000L)
+            currentIndex++
+        } else {
+            autoPlay = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -70,7 +87,19 @@ fun RehearsalScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = autoPlay, onClick = { autoPlay = !autoPlay }, label = { Text(if (autoPlay) "⏸ توقف خودخوان" else "▶ حالت خودخوان") })
+                listOf(2, 3, 5).forEach { sec ->
+                    FilterChip(
+                        selected = autoSpeedSeconds == sec,
+                        onClick = { autoSpeedSeconds = sec },
+                        label = { Text("${sec}ث") }
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth().weight(1f),

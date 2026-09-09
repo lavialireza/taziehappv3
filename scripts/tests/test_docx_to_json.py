@@ -37,7 +37,10 @@ def test_convert_builds_correct_hierarchy(sample_docx_path):
     assert len(result) == 1
     field = result[0]
     assert field["title"] == "اصفهان"
+    assert field["id"] == "field:اصفهان"
     assert len(field["taziehs"]) == 1
+    assert field["taziehs"][0]["complete"] is True
+    assert field["taziehs"][0]["roles"][0]["sections"][0]["id"].startswith("section:role:tazieh:field:اصفهان:عاشورا:شمر:")
 
     tazieh = field["taziehs"][0]
     assert tazieh["title"] == "عاشورا"

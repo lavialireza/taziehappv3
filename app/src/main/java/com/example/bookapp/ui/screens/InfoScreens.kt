@@ -93,9 +93,9 @@ fun AboutScreen(
             Spacer(Modifier.height(16.dp))
             Text("مشخصات نویسنده برنامه و گردآوری", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            Text(" مهندس علیرضا لاوی")
+            Text("مهندس علیرضا لاوی")
             Text("نسخه: ${BuildConfig.VERSION_NAME}")
-            Text("راه ارتباطی: [alirezalavi65@gmail.com ,09132383677]")
+            Text("راه ارتباطی: [09132383677]")
 
             Spacer(Modifier.height(24.dp))
             Button(onClick = {
@@ -263,7 +263,6 @@ fun SettingsScreen(
                         val result = onSyncContent()
                         syncing = false
                         syncMessage = if (result.isSuccess) {
-                            com.example.bookapp.data.showNewContentNotification(context, 1)
                             "محتوا با موفقیت به‌روزرسانی شد ✅"
                         } else {
                             "خطا در بروزرسانی: ${result.exceptionOrNull()?.message ?: "اتصال اینترنت را بررسی کنید"} ❌"
@@ -319,20 +318,27 @@ fun SettingsScreen(
             Text(
                 "یادداشت‌ها، علاقه‌مندی‌ها، پاورقی‌ها، نقش‌های «من» و گفتگوهای شما در یک فایل ذخیره می‌شود. " +
                     "از پنجره‌ای که باز می‌شود می‌توانید محل ذخیره را انتخاب کنید: حافظه‌ی داخلی/کارت حافظه‌ی گوشی، " +
-                    "یا اگر روی گوشی نصب باشد یک سرویس ابری مثل گوگل‌درایو.",
+                    "یا اگر روی گوشی نصب باشد یک سرویس ابری مثل گوگل‌درایو. می‌توانید یک رمز هم روی فایل بگذارید " +
+                    "(چون شامل یادداشت‌های شخصی شماست)؛ در این صورت فقط با همان رمز قابل بازیابی است — اگر رمز را " +
+                    "فراموش کنید، هیچ راهی برای بازیابی آن فایل وجود ندارد.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
 
             var backupMessage by remember { mutableStateOf<String?>(null) }
+            var pendingAction by remember { mutableStateOf<String?>(null) } // "backup" | "restore"
+            var passwordInput by remember { mutableStateOf("") }
+            var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
             val createBackupLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.CreateDocument("application/json")
+                contract = ActivityResultContracts.CreateDocument("application/octet-stream")
             ) { uri ->
                 if (uri != null) {
                     scope.launch {
-                        com.example.bookapp.data.writeBackupToUri(context, db, uri)
+                        com.example.bookapp.data.writeBackupToUri(context, db, uri, passwordInput.ifBlank { null })
                         backupMessage = "پشتیبان با موفقیت ذخیره شد ✅"
+                        passwordInput = ""
                     }
                 }
             }
@@ -340,25 +346,17 @@ fun SettingsScreen(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
-                    scope.launch {
-                        val result = com.example.bookapp.data.restoreBackupFromUri(context, db, uri)
-                        backupMessage = if (result.isSuccess) {
-                            "بازیابی با موفقیت انجام شد ✅"
-                        } else {
-                            "خطا در بازیابی: ${result.exceptionOrNull()?.message ?: "فایل نامعتبر است"} ❌"
-                        }
-                    }
+                    pendingRestoreUri = uri
+                    pendingAction = "restore"
                 }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    createBackupLauncher.launch("پشتیبان-تعزیه.json")
-                }) {
+                Button(onClick = { pendingAction = "backup" }) {
                     Text("گرفتن پشتیبان")
                 }
                 OutlinedButton(onClick = {
-                    restoreBackupLauncher.launch(arrayOf("application/json"))
+                    restoreBackupLauncher.launch(arrayOf("application/octet-stream", "application/json", "*/*"))
                 }) {
                     Text("بازیابی از پشتیبان")
                 }
@@ -366,6 +364,75 @@ fun SettingsScreen(
             backupMessage?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+
+            if (pendingAction == "backup") {
+                AlertDialog(
+                    onDismissRequest = { pendingAction = null; passwordInput = "" },
+                    title = { Text("رمز عبور پشتیبان (اختیاری)") },
+                    text = {
+                        Column {
+                            Text("اگر می‌خواهید فایل رمزگذاری شود، رمزی وارد کنید؛ برای بدون‌رمز خالی بگذارید.", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = { passwordInput = it },
+                                label = { Text("رمز (اختیاری)") },
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            pendingAction = null
+                            createBackupLauncher.launch("پشتیبان-تعزیه.tazbackup")
+                        }) { Text("ادامه") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingAction = null; passwordInput = "" }) { Text("انصراف") }
+                    }
+                )
+            }
+
+            if (pendingAction == "restore" && pendingRestoreUri != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingAction = null; passwordInput = ""; pendingRestoreUri = null },
+                    title = { Text("رمز عبور پشتیبان") },
+                    text = {
+                        Column {
+                            Text("اگر این فایل هنگام ذخیره رمزگذاری شده، همان رمز را وارد کنید؛ اگر رمزی نداشت، خالی بگذارید.", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = { passwordInput = it },
+                                label = { Text("رمز (در صورت وجود)") },
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val uri = pendingRestoreUri!!
+                            val pwd = passwordInput.ifBlank { null }
+                            pendingAction = null; passwordInput = ""; pendingRestoreUri = null
+                            scope.launch {
+                                val result = com.example.bookapp.data.restoreBackupFromUri(context, db, uri, pwd)
+                                backupMessage = if (result.isSuccess) {
+                                    "بازیابی با موفقیت انجام شد ✅"
+                                } else {
+                                    "خطا در بازیابی: ${result.exceptionOrNull()?.message ?: "رمز اشتباه است یا فایل نامعتبر است"} ❌"
+                                }
+                            }
+                        }) { Text("بازیابی") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingAction = null; passwordInput = ""; pendingRestoreUri = null }) { Text("انصراف") }
+                    }
+                )
             }
 
             Spacer(Modifier.height(32.dp))

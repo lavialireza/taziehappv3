@@ -56,6 +56,8 @@ fun sortTaziehIndexItems(items: List<TaziehIndexItem>): List<TaziehIndexItem> {
 @Composable
 fun TaziehIndexScreen(
     taziehTitle: String,
+    author: String? = null,
+    authorEmail: String? = null,
     items: List<TaziehIndexItem>,
     onItemClick: (TaziehIndexItem) -> Unit,
     onExportPdf: () -> Unit,
@@ -89,6 +91,20 @@ fun TaziehIndexScreen(
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (!author.isNullOrBlank() || !authorEmail.isNullOrBlank()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("مشخصات نویسنده/گردآورنده", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            if (!author.isNullOrBlank()) Text(author)
+                            if (!authorEmail.isNullOrBlank()) Text(authorEmail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
             items(sorted, key = { it.roleId }) { item ->
                 val index = sorted.indexOf(item)
                 Card(

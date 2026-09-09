@@ -116,14 +116,36 @@ private suspend fun exportPdfInternal(
                 .setLineSpacing(6f, 1f)
                 .build()
 
-            // چون ممکن است متن طولانی از یک صفحه بیشتر باشد، به‌صورت ساده هر بخش را
-            // یکجا در صفحه فعلی یا صفحه بعد رسم می‌کنیم
-            if (y + body.height > pageHeight - margin && y > margin + 40f) newPage()
-            canvas.save()
-            canvas.translate(margin, y)
-            body.draw(canvas)
-            canvas.restore()
-            y += body.height + 24f
+            // متن طولانی باید واقعاً بین چند صفحه شکسته شود؛ قبلاً کل StaticLayout
+            // یکجا رسم می‌شد و بخش‌هایی از متن از صفحه بیرون می‌افتاد.
+            var consumedHeight = 0
+            while (consumedHeight < body.height) {
+                val available = (pageHeight - margin - y).toInt()
+                if (available < 24) {
+                    newPage()
+                    continue
+                }
+
+                val startLine = body.getLineForVertical(consumedHeight)
+                var endLine = body.getLineForVertical(minOf(body.height - 1, consumedHeight + available - 1))
+                if (endLine < startLine) endLine = startLine
+                val chunkBottom = body.getLineBottom(endLine)
+                val chunkHeight = (chunkBottom - consumedHeight).coerceAtLeast(1)
+
+                canvas.save()
+                canvas.clipRect(margin, y, pageWidth - margin, y + available)
+                canvas.translate(margin, y - consumedHeight)
+                body.draw(canvas)
+                canvas.restore()
+
+                consumedHeight += chunkHeight
+                y += chunkHeight
+                if (consumedHeight < body.height) {
+                    newPage()
+                } else {
+                    y += 24f
+                }
+            }
         }
     }
 

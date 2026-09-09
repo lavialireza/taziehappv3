@@ -34,12 +34,12 @@ class DataLayerTest {
             .allowMainThreadQueries()
             .build()
 
-        fieldId = db.fieldDao().insert(FieldEntity(title = "اصفهان"))
-        taziehId = db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = "عاشورا"))
-        roleAId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "امام حسین", orderIndex = 0))
-        roleBId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "علی‌اکبر", orderIndex = 1))
-        sectionAId = db.sectionDao().insert(SectionEntity(roleId = roleAId, orderIndex = 0, title = "وداع", content = "بیت امام"))
-        sectionBId = db.sectionDao().insert(SectionEntity(roleId = roleBId, orderIndex = 0, title = "جواب", content = "بیت علی‌اکبر"))
+        fieldId = db.fieldDao().insert(FieldEntity(title = "اصفهان", stableKey = "field-test"))
+        taziehId = db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = "عاشورا", stableKey = "tazieh-test"))
+        roleAId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "امام حسین", orderIndex = 0, stableKey = "role-a"))
+        roleBId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "علی‌اکبر", orderIndex = 1, stableKey = "role-b"))
+        sectionAId = db.sectionDao().insert(SectionEntity(roleId = roleAId, orderIndex = 0, title = "وداع", content = "بیت امام", stableKey = "section-a"))
+        sectionBId = db.sectionDao().insert(SectionEntity(roleId = roleBId, orderIndex = 0, title = "جواب", content = "بیت علی‌اکبر", stableKey = "section-b"))
     }
 
     @After
@@ -119,10 +119,11 @@ class DataLayerTest {
         val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        val freshFieldId = freshDb.fieldDao().insert(FieldEntity(title = "اصفهان"))
-        val freshTaziehId = freshDb.taziehDao().insert(TaziehEntity(fieldId = freshFieldId, title = "عاشورا"))
-        val freshRoleId = freshDb.roleDao().insert(RoleEntity(taziehId = freshTaziehId, title = "امام حسین"))
-        val freshSectionId = freshDb.sectionDao().insert(SectionEntity(roleId = freshRoleId, orderIndex = 0, title = "وداع", content = "بیت امام"))
+        freshDb.fieldDao().insert(FieldEntity(title = "موقت", stableKey = "dummy-field"))
+        val freshFieldId = freshDb.fieldDao().insert(FieldEntity(title = "اصفهان", stableKey = "field-test"))
+        val freshTaziehId = freshDb.taziehDao().insert(TaziehEntity(fieldId = freshFieldId, title = "عاشورا", stableKey = "tazieh-test"))
+        val freshRoleId = freshDb.roleDao().insert(RoleEntity(taziehId = freshTaziehId, title = "امام حسین", stableKey = "role-a"))
+        val freshSectionId = freshDb.sectionDao().insert(SectionEntity(roleId = freshRoleId, orderIndex = 0, title = "وداع", content = "بیت امام", stableKey = "section-a"))
 
         val result = restoreBackupFromUri(context, freshDb, uri)
         assertTrue(result.isSuccess)
@@ -131,7 +132,7 @@ class DataLayerTest {
         assertEquals(1, restoredNotes.size)
         assertEquals("یادداشت من", restoredNotes[0].title)
 
-        val restoredFootnotes = freshDb.footnoteDao().getBySection(sectionAId)
+        val restoredFootnotes = freshDb.footnoteDao().getBySection(freshSectionId)
         assertTrue(restoredFootnotes.isNotEmpty())
 
         val restoredDialogues = freshDb.dialogueDao().getByTazieh(freshTaziehId)
@@ -140,4 +141,16 @@ class DataLayerTest {
         tempFile.delete()
         freshDb.close()
     }
+    @Test
+    fun `persian normalization makes Arabic Yeh and Kaf searchable`() = runTest {
+        assertEquals("یک کلمه", normalizePersian("يك كلمه"))
+    }
+
+    @Test
+    fun `fts indexes inserted sections`() = runTest {
+        db.sectionFtsDao().insert(SectionFts(sectionAId, normalizePersian("وداع"), normalizePersian("ای یاران کربلا")))
+        val ids = db.searchDao().searchFts("یاران*").map { it.sectionId }
+        assertTrue(sectionAId in ids)
+    }
+
 }

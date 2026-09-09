@@ -43,10 +43,12 @@ class MainActivity : ComponentActivity() {
         // اگر اپ از طریق میان‌بر فشار طولانی روی آیکون باز شده، مقصد را می‌خوانیم
         val shortcutTarget = intent?.getStringExtra("shortcut_target")
 
-        // اگر اپ از طریق یک لینک taziehapp://section/{id} باز شده (اشتراک‌گذاری مستقیم یک بخش)
-        val deepLinkSectionId = intent?.data?.let { uri ->
-            if (uri.scheme == "taziehapp" && uri.host == "section") uri.lastPathSegment?.toLongOrNull() else null
+        // لینک جدید با stableKey مستقل از ID داخلی Room است؛ لینک قدیمی عددی نیز برای سازگاری پشتیبانی می‌شود.
+        val deepLinkValue = intent?.data?.let { uri ->
+            if (uri.scheme == "taziehapp" && uri.host == "section") uri.lastPathSegment else null
         }
+        val deepLinkSectionId = deepLinkValue?.toLongOrNull()
+        val deepLinkSectionKey = deepLinkValue?.takeUnless { it.toLongOrNull() != null }
 
         setContent {
             var autoDarkMode by remember { mutableStateOf(Prefs.getAutoDarkMode(this)) }
@@ -67,15 +69,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // در اندروید ۱۳ به بعد، نمایش اعلان نیاز به اجازه‌ی صریح کاربر دارد
-            val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-            ) { /* نتیجه را نادیده می‌گیریم؛ اگر رد شود فقط اعلان نشان داده نمی‌شود */ }
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
+            // درخواست اعلان در اولین اجرای برنامه حذف شد؛ اعلان فقط پس از یک عمل
+            // مرتبط با کاربر (مثل بروزرسانی محتوا) یا در صورت فعال بودن تنظیم مربوطه استفاده می‌شود.
 
             val colorScheme = colorSchemeFor(themeChoice, darkMode)
             val typography = typographyFor(fontChoice)
@@ -121,7 +116,8 @@ class MainActivity : ComponentActivity() {
                                 Prefs.setKeepScreenOn(this, it)
                             },
                             shortcutTarget = shortcutTarget,
-                            deepLinkSectionId = deepLinkSectionId
+                            deepLinkSectionId = deepLinkSectionId,
+                            deepLinkSectionKey = deepLinkSectionKey
                         )
                     }
                 }

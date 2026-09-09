@@ -34,22 +34,25 @@ val FontChoiceLabels = mapOf(
 )
 
 fun typographyFor(fontChoice: String): Typography {
-    val family = FontChoices[fontChoice] ?: TaziehFontFamily
+    val bodyFamily = FontChoices[fontChoice] ?: FontFamily.Serif
+    // تیترها با B Titr و متن اصلی با فونت خواناتر نمایش داده می‌شوند.
+    // B Nazanin در این بسته وجود ندارد؛ بنابراین Serif به‌عنوان fallback فارسی
+    // انتخاب شده تا متن طولانی خوانایی بیشتری داشته باشد.
     return Typography(
-        displayLarge = TextStyle(fontFamily = family),
-        displayMedium = TextStyle(fontFamily = family),
-        displaySmall = TextStyle(fontFamily = family),
-        headlineLarge = TextStyle(fontFamily = family),
-        headlineMedium = TextStyle(fontFamily = family),
-        headlineSmall = TextStyle(fontFamily = family),
-        titleLarge = TextStyle(fontFamily = family),
-        titleMedium = TextStyle(fontFamily = family),
-        titleSmall = TextStyle(fontFamily = family),
-        bodyLarge = TextStyle(fontFamily = family, fontSize = 18.sp, lineHeight = 32.sp),
-        bodyMedium = TextStyle(fontFamily = family),
-        bodySmall = TextStyle(fontFamily = family),
-        labelLarge = TextStyle(fontFamily = family),
-        labelMedium = TextStyle(fontFamily = family),
-        labelSmall = TextStyle(fontFamily = family)
+        displayLarge = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        displayMedium = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        displaySmall = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        headlineLarge = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        headlineMedium = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        headlineSmall = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        titleLarge = TextStyle(fontFamily = TaziehFontFamily, fontWeight = FontWeight.Bold),
+        titleMedium = TextStyle(fontFamily = bodyFamily),
+        titleSmall = TextStyle(fontFamily = bodyFamily),
+        bodyLarge = TextStyle(fontFamily = bodyFamily, fontSize = 18.sp, lineHeight = 32.sp),
+        bodyMedium = TextStyle(fontFamily = bodyFamily, fontSize = 16.sp, lineHeight = 28.sp),
+        bodySmall = TextStyle(fontFamily = bodyFamily, fontSize = 14.sp, lineHeight = 24.sp),
+        labelLarge = TextStyle(fontFamily = bodyFamily),
+        labelMedium = TextStyle(fontFamily = bodyFamily),
+        labelSmall = TextStyle(fontFamily = bodyFamily)
     )
 }

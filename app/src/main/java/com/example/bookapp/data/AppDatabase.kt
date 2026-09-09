@@ -21,9 +21,10 @@ import java.net.URL
         FootnoteEntity::class,
         DialogueEntity::class,
         DialogueTurnEntity::class,
-        TaziehImageEntity::class
+        TaziehImageEntity::class,
+        SectionFts::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun roleDao(): RoleDao
     abstract fun sectionDao(): SectionDao
     abstract fun searchDao(): SearchDao
+    abstract fun sectionFtsDao(): SectionFtsDao
     abstract fun noteDao(): NoteDao
     abstract fun footnoteDao(): FootnoteDao
     abstract fun dialogueDao(): DialogueDao
@@ -95,6 +97,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `taziehs` ADD COLUMN `author` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `taziehs` ADD COLUMN `authorEmail` TEXT DEFAULT NULL")
+            }
+        }
+
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `fields` ADD COLUMN `stableKey` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `taziehs` ADD COLUMN `stableKey` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `roles` ADD COLUMN `stableKey` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `sections` ADD COLUMN `stableKey` TEXT NOT NULL DEFAULT ''")
+
+                // برای داده‌های قدیمی یک کلید پایدار بر اساس مسیر متنی می‌سازیم؛
+                // داده‌های جدید در صورت وجود id صریح، از همان id استفاده خواهند کرد.
+                db.execSQL("UPDATE fields SET stableKey = 'field:' || title WHERE stableKey = ''")
+                db.execSQL("""UPDATE taziehs SET stableKey = 'tazieh:' ||
+                    'field:' || (SELECT title FROM fields WHERE fields.id = taziehs.fieldId) || ':' || title
+                    WHERE stableKey = ''""")
+                db.execSQL("""UPDATE roles SET stableKey = 'role:tazieh:' ||
+                    (SELECT 'field:' || f.title || ':' || t.title FROM taziehs t JOIN fields f ON f.id = t.fieldId WHERE t.id = roles.taziehId) || ':' || title
+                    WHERE stableKey = ''""")
+                db.execSQL("""UPDATE sections SET stableKey = 'section:role:tazieh:' ||
+                    (SELECT 'field:' || f.title || ':' || t.title || ':' || r.title || ':' || sections.title
+                     FROM roles r JOIN taziehs t ON t.id = r.taziehId JOIN fields f ON f.id = t.fieldId
+                     WHERE r.id = sections.roleId)
+                    WHERE stableKey = ''""")
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_fields_stableKey` ON `fields` (`stableKey`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_taziehs_stableKey` ON `taziehs` (`stableKey`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_roles_stableKey` ON `roles` (`stableKey`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sections_stableKey` ON `sections` (`stableKey`)")
+
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `sections_fts` USING fts4(`sectionId`, `title`, `content`, tokenize=unicode61)")
+                db.execSQL("INSERT INTO sections_fts(sectionId, title, content) SELECT id, title, content FROM sections")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -102,7 +144,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "bookapp.db"
                 )
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     // برای گذارهای قبل از نسخه ۵ که مطمئن نیستیم schema دقیقشان چه بوده،
                     // همچنان بازسازی خودکار انجام می‌شود.
                     .fallbackToDestructiveMigration()
@@ -129,7 +171,15 @@ abstract class AppDatabase : RoomDatabase() {
  * و چیزی واقعاً تازه اضافه شده باشد، یک اعلان محلی هم نشان داده می‌شود.
  */
 suspend fun syncLocalContentFiles(context: Context, db: AppDatabase): Int {
-    val allFiles = context.assets.list("content")?.filter { it.endsWith(".json") }?.sorted() ?: emptyList()
+    val allFileNames = context.assets.list("content")?.filter { it.endsWith(".json") }?.sorted() ?: emptyList()
+    // کلید ردیابی «اسم‌فایل:هش‌محتوا» است نه فقط اسم فایل، تا اگر محتوای همان فایل
+    // (برای اصلاح یک جمله یا افزودن مشخصات نویسنده) تغییر کند، دوباره پردازش شود
+    // نه اینکه چون اسمش را قبلاً دیده نادیده گرفته شود.
+    val allFiles = allFileNames.map { name ->
+        val text = context.assets.open("content/$name").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        FileWithKey(name, text, "$name:${contentKey(text)}")
+    }
+
     var processed = Prefs.getProcessedContentFiles(context)
     val hadContentBefore = db.fieldDao().getAll().isNotEmpty()
 
@@ -139,24 +189,26 @@ suspend fun syncLocalContentFiles(context: Context, db: AppDatabase): Int {
         processed = emptySet()
     }
 
-    val newFiles = allFiles.filter { it !in processed }
-    if (newFiles.isEmpty()) return 0
+    val newOrChangedFiles = allFiles.filter { it.key !in processed }
+    if (newOrChangedFiles.isEmpty()) return 0
 
-    for (fileName in newFiles) {
-        val jsonText = context.assets.open("content/$fileName")
-            .bufferedReader(Charsets.UTF_8).use { it.readText() }
-        mergeContentFromJson(db, jsonText)
+    for (file in newOrChangedFiles) {
+        mergeContentFromJson(db, file.text)
     }
-    Prefs.addProcessedContentFiles(context, allFiles) // کل فهرست فعلی را به‌عنوان پردازش‌شده ثبت می‌کنیم (نه فقط newFiles، چون ممکن است processed از صفر بازنشانی شده باشد)
+    // کل فهرست فعلی (با هشِ فعلیِ هرکدام) را به‌عنوان پردازش‌شده ثبت می‌کنیم؛ کلیدهای
+    // قدیمیِ همان فایل‌ها (با هش قبلی) به‌طور طبیعی دیگر استفاده نمی‌شوند.
+    Prefs.setProcessedContentFiles(context, allFiles.map { it.key }.toSet())
 
     // فقط وقتی اعلان نشان بده که این اولین نصب نبوده (کاربر قبلاً محتوا داشته)
     // تا کاربرِ تازه‌نصب‌کرده با یک اعلان اضافه و بی‌مورد مواجه نشود
     if (hadContentBefore) {
-        showNewContentNotification(context, newFiles.size)
+        showNewContentNotification(context, newOrChangedFiles.size)
     }
 
-    return newFiles.size
+    return newOrChangedFiles.size
 }
+
+private data class FileWithKey(val name: String, val text: String, val key: String)
 
 /**
  * محتوای فعلی (زمینه/تعزیه/نقش/بخش) را کامل پاک کرده و از یک متن JSON
@@ -197,40 +249,78 @@ internal suspend fun mergeContentFromJson(db: AppDatabase, jsonText: String) {
         for (fi in 0 until fields.length()) {
             val fieldObj = fields.getJSONObject(fi)
             val fieldTitle = fieldObj.getString("title")
-            val fieldId = db.fieldDao().getByTitle(fieldTitle)?.id
-                ?: db.fieldDao().insert(FieldEntity(title = fieldTitle))
+            val fieldKey = fieldObj.optString("id", "").ifBlank { contentKey("field:$fieldTitle") }
+            val field = db.fieldDao().getByStableKey(fieldKey)
+                ?: db.fieldDao().getByTitle(fieldTitle)
+            val fieldId = if (field != null) {
+                if (field.title != fieldTitle) db.fieldDao().updateTitle(field.id, fieldTitle)
+                db.fieldDao().updateStableKey(field.id, fieldKey)
+                field.id
+            } else db.fieldDao().insert(FieldEntity(title = fieldTitle, stableKey = fieldKey))
 
             val taziehs = fieldObj.getJSONArray("taziehs")
             for (ti in 0 until taziehs.length()) {
                 val taziehObj = taziehs.getJSONObject(ti)
                 val taziehTitle = taziehObj.getString("title")
-                val taziehId = db.taziehDao().getByTitle(fieldId, taziehTitle)?.id
-                    ?: db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = taziehTitle))
+                val taziehKey = taziehObj.optString("id", "").ifBlank { contentKey("tazieh:$fieldKey:$taziehTitle") }
+                val existingTazieh = db.taziehDao().getByStableKey(taziehKey)
+                    ?: db.taziehDao().getByTitle(fieldId, taziehTitle)
+                val taziehId = if (existingTazieh != null) existingTazieh.id
+                else db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = taziehTitle, stableKey = taziehKey))
+                val author = taziehObj.optString("author", "").ifBlank { existingTazieh?.author }
+                val authorEmail = taziehObj.optString("authorEmail", "").ifBlank { existingTazieh?.authorEmail }
+                db.taziehDao().updateMetadata(taziehId, taziehKey, taziehTitle, author, authorEmail)
 
+                val complete = taziehObj.optBoolean("complete", false)
                 val roles = taziehObj.getJSONArray("roles")
+                val seenRoleKeys = mutableSetOf<String>()
                 for (ri in 0 until roles.length()) {
                     val roleObj = roles.getJSONObject(ri)
                     val roleTitle = roleObj.getString("title")
-                    val roleId = db.roleDao().getByTitle(taziehId, roleTitle)?.id
-                        ?: run {
-                            val nextRoleOrder = db.roleDao().getMaxOrderIndex(taziehId) + 1
-                            db.roleDao().insert(RoleEntity(taziehId = taziehId, title = roleTitle, orderIndex = nextRoleOrder))
-                        }
+                    val roleKey = roleObj.optString("id", "").ifBlank { contentKey("role:$taziehKey:$roleTitle") }
+                    seenRoleKeys += roleKey
+                    val existingRole = db.roleDao().getByStableKey(roleKey)
+                        ?: db.roleDao().getByTitle(taziehId, roleTitle)
+                    val roleId = if (existingRole != null) {
+                        db.roleDao().updateTitle(existingRole.id, roleTitle)
+                        db.roleDao().updateStableKey(existingRole.id, roleKey)
+                        db.roleDao().updateOrderIndex(existingRole.id, ri)
+                        existingRole.id
+                    } else db.roleDao().insert(RoleEntity(taziehId = taziehId, title = roleTitle, orderIndex = ri, stableKey = roleKey))
 
-                    var nextOrderIndex = db.sectionDao().getMaxOrderIndex(roleId) + 1
                     val sections = roleObj.getJSONArray("sections")
+                    val seenSectionKeys = mutableSetOf<String>()
                     for (si in 0 until sections.length()) {
                         val secObj = sections.getJSONObject(si)
-                        db.sectionDao().insert(
-                            SectionEntity(
-                                roleId = roleId,
-                                orderIndex = nextOrderIndex,
-                                title = secObj.getString("title"),
-                                content = secObj.getString("content"),
-                                audioUrl = secObj.optString("audio", "").ifBlank { null }
-                            )
-                        )
-                        nextOrderIndex++
+                        val sectionTitle = secObj.getString("title")
+                        val newContent = secObj.getString("content")
+                        val hasAudioField = secObj.has("audio")
+                        val newAudio = if (hasAudioField) secObj.optString("audio", "").ifBlank { null } else null
+                        val sectionKey = secObj.optString("id", "").ifBlank { contentKey("section:$roleKey:$sectionTitle") }
+                        seenSectionKeys += sectionKey
+                        val existingSection = db.sectionDao().getByStableKey(sectionKey)
+                            ?: db.sectionDao().getByTitle(roleId, sectionTitle)
+                        if (existingSection != null) {
+                            db.sectionDao().updateStableKey(existingSection.id, sectionKey)
+                            db.sectionDao().updateFromContent(existingSection.id, sectionTitle, si, newContent, if (hasAudioField) newAudio else existingSection.audioUrl)
+                            db.sectionFtsDao().deleteBySection(existingSection.id)
+                            db.sectionFtsDao().insert(SectionFts(existingSection.id, normalizePersian(sectionTitle), normalizePersian(newContent)))
+                        } else {
+                            val newId = db.sectionDao().insert(SectionEntity(roleId, si, sectionTitle, newContent, newAudio, sectionKey))
+                            db.sectionFtsDao().insert(SectionFts(newId, normalizePersian(sectionTitle), normalizePersian(newContent)))
+                        }
+                    }
+                    if (complete) {
+                        db.sectionDao().getByRole(roleId).filter { it.stableKey !in seenSectionKeys }.forEach {
+                            db.sectionDao().delete(it.id)
+                            db.sectionFtsDao().deleteBySection(it.id)
+                        }
+                    }
+                }
+                if (complete) {
+                    db.roleDao().getByTazieh(taziehId).filter { it.stableKey !in seenRoleKeys }.forEach { roleToDelete ->
+                        db.sectionDao().getByRole(roleToDelete.id).forEach { db.sectionFtsDao().deleteBySection(it.id) }
+                        db.roleDao().delete(roleToDelete.id)
                     }
                 }
             }
