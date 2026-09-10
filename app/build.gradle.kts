@@ -18,10 +18,6 @@ run {
 fun signingProp(key: String): String? =
     (localProps.getProperty(key) ?: System.getenv(key))?.takeIf { it.isNotBlank() }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
 android {
     namespace = "com.example.bookapp"
     compileSdk = 34

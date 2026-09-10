@@ -1,11 +1,6 @@
 package com.example.bookapp.data
 
 import android.content.Context
-import android.util.Base64
-import java.security.MessageDigest
-import java.security.SecureRandom
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
 
 /**
  * ذخیره‌سازی ساده تنظیمات کاربر (حالت روز/شب و سایز فونت) با SharedPreferences.
@@ -131,12 +126,12 @@ object Prefs {
         current.add(sectionId.toString())
         prefs.edit().putStringSet(KEY_READ_SECTIONS, current).apply()
 
-        val today = localDayKey() // روز محلی دستگاه
+        val today = (System.currentTimeMillis() / 86_400_000L).toInt() // شماره روز از epoch
         val lastDay = prefs.getInt(KEY_LAST_READ_DAY, -1)
         val streak = prefs.getInt(KEY_STREAK_DAYS, 0)
         when {
             lastDay == today -> { /* همان روز، تغییری لازم نیست */ }
-            lastDay == previousLocalDayKey() -> prefs.edit().putInt(KEY_STREAK_DAYS, streak + 1).putInt(KEY_LAST_READ_DAY, today).apply()
+            lastDay == today - 1 -> prefs.edit().putInt(KEY_STREAK_DAYS, streak + 1).putInt(KEY_LAST_READ_DAY, today).apply()
             else -> prefs.edit().putInt(KEY_STREAK_DAYS, 1).putInt(KEY_LAST_READ_DAY, today).apply()
         }
 
@@ -149,16 +144,8 @@ object Prefs {
     fun getActiveDaysLast(context: Context, days: Int = 14): List<Boolean> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val activeDays = prefs.getStringSet(KEY_ACTIVE_DAYS, emptySet()) ?: emptySet()
-        val cal = java.util.Calendar.getInstance()
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        return (days - 1 downTo 0).map { offset ->
-            val day = cal.clone() as java.util.Calendar
-            day.add(java.util.Calendar.DAY_OF_MONTH, -offset)
-            localDayKeyFrom(day).toString() in activeDays
-        }
+        val today = (System.currentTimeMillis() / 86_400_000L).toInt()
+        return (days - 1 downTo 0).map { offset -> (today - offset).toString() in activeDays }
     }
 
     fun getReadSectionsCount(context: Context): Int {
@@ -168,46 +155,10 @@ object Prefs {
 
     fun getStreakDays(context: Context): Int {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val today = localDayKey()
+        val today = (System.currentTimeMillis() / 86_400_000L).toInt()
         val lastDay = prefs.getInt(KEY_LAST_READ_DAY, -1)
         // اگر بیش از یک روز از آخرین مطالعه گذشته، زنجیره شکسته است
-        return if (lastDay == today || lastDay == previousLocalDayKey()) prefs.getInt(KEY_STREAK_DAYS, 0) else 0
-    }
-
-    fun getReadSectionIds(context: Context): Set<Long> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getStringSet(KEY_READ_SECTIONS, emptySet()).orEmpty().mapNotNull { it.toLongOrNull() }.toSet()
-    }
-
-    fun mergeReadSectionIds(context: Context, ids: Set<Long>) {
-        if (ids.isEmpty()) return
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val merged = prefs.getStringSet(KEY_READ_SECTIONS, emptySet()).orEmpty().toMutableSet()
-        merged.addAll(ids.map(Long::toString))
-        prefs.edit().putStringSet(KEY_READ_SECTIONS, merged).apply()
-    }
-
-    fun getActiveDayValues(context: Context): Set<String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getStringSet(KEY_ACTIVE_DAYS, emptySet()).orEmpty()
-    }
-
-    fun mergeActiveDayValues(context: Context, values: Set<String>) {
-        if (values.isEmpty()) return
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val merged = prefs.getStringSet(KEY_ACTIVE_DAYS, emptySet()).orEmpty().toMutableSet()
-        merged.addAll(values)
-        prefs.edit().putStringSet(KEY_ACTIVE_DAYS, merged).apply()
-    }
-
-    fun getAllTags(context: Context): Map<Long, String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.all.mapNotNull { (key, value) ->
-            if (!key.startsWith(KEY_TAG_PREFIX)) return@mapNotNull null
-            val id = key.removePrefix(KEY_TAG_PREFIX).toLongOrNull() ?: return@mapNotNull null
-            val tag = value as? String ?: return@mapNotNull null
-            id to tag
-        }.toMap()
+        return if (lastDay == today || lastDay == today - 1) prefs.getInt(KEY_STREAK_DAYS, 0) else 0
     }
 
     private const val KEY_TAG_PREFIX = "tag_"
@@ -260,66 +211,17 @@ object Prefs {
     }
 
     private const val KEY_APP_PASSWORD = "app_password"
-    private const val PASSWORD_PREFIX = "v2$"
-    private const val PASSWORD_ITERATIONS = 210_000
-    private const val PASSWORD_SALT_BYTES = 16
-    private const val PASSWORD_KEY_BITS = 256
 
-    /** True when a password exists; the password itself is never returned. */
-    fun hasAppPassword(context: Context): Boolean = getStoredPassword(context).isNotBlank()
-
-    /** Backward-compatible getter: returns the legacy plaintext only for old installations. */
-    @Deprecated("Use hasAppPassword/verifyAppPassword")
-    fun getAppPassword(context: Context): String = getStoredPassword(context)
-
-    fun verifyAppPassword(context: Context, candidate: String): Boolean {
-        val stored = getStoredPassword(context)
-        if (stored.isBlank()) return true
-        if (stored.startsWith(PASSWORD_PREFIX)) return verifyPasswordHash(candidate, stored)
-        // One-time migration from the old plaintext format.
-        if (constantTimeEquals(candidate.toByteArray(Charsets.UTF_8), stored.toByteArray(Charsets.UTF_8))) {
-            setAppPassword(context, candidate)
-            return true
-        }
-        return false
-    }
-
-    fun setAppPassword(context: Context, newPassword: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (newPassword.isBlank()) {
-            prefs.edit().remove(KEY_APP_PASSWORD).apply()
-            return
-        }
-        prefs.edit().putString(KEY_APP_PASSWORD, hashPassword(newPassword)).apply()
-    }
-
-    private fun getStoredPassword(context: Context): String {
+    /** رمز عبور برنامه؛ اگر خالی باشد یعنی هنوز رمزی تنظیم نشده و ورود بدون رمز آزاد است */
+    fun getAppPassword(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_APP_PASSWORD, "") ?: ""
     }
 
-    private fun hashPassword(password: String): String {
-        val salt = ByteArray(PASSWORD_SALT_BYTES).also { SecureRandom().nextBytes(it) }
-        val spec = PBEKeySpec(password.toCharArray(), salt, PASSWORD_ITERATIONS, PASSWORD_KEY_BITS)
-        val bytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        return PASSWORD_PREFIX + PASSWORD_ITERATIONS + "$" +
-            Base64.encodeToString(salt, Base64.NO_WRAP) + "$" + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    fun setAppPassword(context: Context, newPassword: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_APP_PASSWORD, newPassword).apply()
     }
-
-    private fun verifyPasswordHash(password: String, encoded: String): Boolean {
-        return try {
-            val parts = encoded.split('$')
-            if (parts.size != 4 || parts[0] != "v2") return false
-            val iterations = parts[1].toInt()
-            val salt = Base64.decode(parts[2], Base64.NO_WRAP)
-            val expected = Base64.decode(parts[3], Base64.NO_WRAP)
-            val spec = PBEKeySpec(password.toCharArray(), salt, iterations, expected.size * 8)
-            val actual = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-            constantTimeEquals(actual, expected)
-        } catch (_: Exception) { false }
-    }
-
-    private fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean = MessageDigest.isEqual(a, b)
 
     private const val KEY_PROCESSED_CONTENT_FILES = "processed_content_files"
 
@@ -373,24 +275,6 @@ object Prefs {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_AUTO_DARK_MODE, value).apply()
     }
-
-    private fun localDayKey(): Int {
-        val cal = java.util.Calendar.getInstance()
-        return cal.get(java.util.Calendar.YEAR) * 10000 +
-            (cal.get(java.util.Calendar.MONTH) + 1) * 100 +
-            cal.get(java.util.Calendar.DAY_OF_MONTH)
-    }
-
-    private fun previousLocalDayKey(): Int {
-        val cal = java.util.Calendar.getInstance()
-        cal.add(java.util.Calendar.DAY_OF_MONTH, -1)
-        return localDayKeyFrom(cal)
-    }
-
-    private fun localDayKeyFrom(cal: java.util.Calendar): Int =
-        cal.get(java.util.Calendar.YEAR) * 10000 +
-            (cal.get(java.util.Calendar.MONTH) + 1) * 100 +
-            cal.get(java.util.Calendar.DAY_OF_MONTH)
 
     /** بین ساعت ۱۸ شب تا ۶ صبح، «شب» در نظر گرفته می‌شود */
     fun isNightTimeNow(): Boolean {

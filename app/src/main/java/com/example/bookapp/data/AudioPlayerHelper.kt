@@ -6,7 +6,7 @@ import android.media.MediaPlayer
 /**
  * پخش صوت واقعی (ضبط‌شده) برای بخش‌هایی که آهنگ/لحن خاص دارند، به‌عنوان
  * جایگزینی برای صدای مصنوعی (TTS). آدرس صوت (audioUrl) می‌تواند:
- *   - یک URL امن HTTPS باشد، یا
+ *   - یک URL کامل (http/https) باشد، یا
  *   - یک مسیر نسبی داخل assets باشد (مثلاً "audio/karbala_shahadat.mp3").
  * onStatus با مقادیر "started" / "done" / "error" فراخوانی می‌شود.
  */
@@ -17,13 +17,8 @@ class AudioPlayerHelper(private val context: Context, private val onStatus: (Str
         stop()
         try {
             val mp = MediaPlayer()
-            if (audioUrl.startsWith("https://")) {
+            if (audioUrl.startsWith("http://") || audioUrl.startsWith("https://")) {
                 mp.setDataSource(audioUrl)
-            } else if (audioUrl.startsWith("http://")) {
-                // Cleartext HTTP is intentionally rejected; use HTTPS for remote audio.
-                mp.release()
-                onStatus("error")
-                return
             } else if (audioUrl.startsWith("/")) {
                 // مسیر مطلق فایل (مثلاً فایلی که کاربر از داخل اپ اضافه کرده و در
                 // حافظه‌ی اختصاصی اپ کپی شده)، نه یک asset داخل بسته‌ی نصب

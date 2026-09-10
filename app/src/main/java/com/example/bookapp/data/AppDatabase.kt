@@ -21,16 +21,10 @@ import java.net.URL
         FootnoteEntity::class,
         DialogueEntity::class,
         DialogueTurnEntity::class,
-        TaziehImageEntity::class,
-        BookmarkEntity::class,
-        SectionTagEntity::class,
-        RecentSectionEntity::class,
-        ReadingHistoryEntity::class,
-        MyRoleEntity::class,
-        ActiveDayEntity::class
+        TaziehImageEntity::class
     ],
-    version = 10,
-    exportSchema = true
+    version = 8,
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fieldDao(): FieldDao
@@ -43,23 +37,31 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dialogueDao(): DialogueDao
     abstract fun dialogueTurnDao(): DialogueTurnDao
     abstract fun taziehImageDao(): TaziehImageDao
-    abstract fun userDataDao(): UserDataDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        /**
+         * از نسخه ۵ به ۶: فقط دو جدول تازه (گفتگو و نوبت‌های گفتگو) اضافه می‌شود؛
+         * هیچ جدول موجودی تغییر نمی‌کند. چون این تغییر را خودمان نوشتیم و ساختار
+         * دقیقش را مطمئنیم، برخلاف گذارهای قبلی، اینجا از Migration واقعی استفاده
+         * می‌کنیم تا داده‌ی کاربر (بوکمارک، یادداشت، پاورقی، نقش من) پاک نشود.
+         */
         private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS `dialogues` (
                         `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                         `taziehId` INTEGER NOT NULL,
                         `title` TEXT NOT NULL,
                         FOREIGN KEY(`taziehId`) REFERENCES `taziehs`(`id`) ON DELETE CASCADE
                     )
-                """.trimIndent())
+                    """.trimIndent()
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_dialogues_taziehId` ON `dialogues` (`taziehId`)")
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS `dialogue_turns` (
                         `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                         `dialogueId` INTEGER NOT NULL,
@@ -68,15 +70,18 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(`dialogueId`) REFERENCES `dialogues`(`id`) ON DELETE CASCADE,
                         FOREIGN KEY(`sectionId`) REFERENCES `sections`(`id`) ON DELETE CASCADE
                     )
-                """.trimIndent())
+                    """.trimIndent()
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_dialogue_turns_dialogueId` ON `dialogue_turns` (`dialogueId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_dialogue_turns_sectionId` ON `dialogue_turns` (`sectionId`)")
             }
         }
 
+        /** از نسخه ۶ به ۷: فقط جدول تصاویر تعزیه اضافه می‌شود. */
         private val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS `tazieh_images` (
                         `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                         `taziehId` INTEGER NOT NULL,
@@ -84,7 +89,8 @@ abstract class AppDatabase : RoomDatabase() {
                         `caption` TEXT NOT NULL DEFAULT '',
                         FOREIGN KEY(`taziehId`) REFERENCES `taziehs`(`id`) ON DELETE CASCADE
                     )
-                """.trimIndent())
+                    """.trimIndent()
+                )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_tazieh_images_taziehId` ON `tazieh_images` (`taziehId`)")
             }
         }
@@ -96,67 +102,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** Version 9: add portable UIDs and content-source tracking without destroying user data. */
-        private val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                val additions = listOf(
-                    "ALTER TABLE `fields` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `taziehs` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `roles` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `sections` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `sections` ADD COLUMN `sourceUid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `notes` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `footnotes` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `dialogues` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `dialogue_turns` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE `tazieh_images` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''"
-                )
-                additions.forEach(db::execSQL)
-
-                // Existing installations get deterministic, unique IDs based on their local primary key.
-                db.execSQL("UPDATE fields SET uid = 'legacy-field-' || id WHERE uid = ''")
-                db.execSQL("UPDATE taziehs SET uid = 'legacy-tazieh-' || id WHERE uid = ''")
-                db.execSQL("UPDATE roles SET uid = 'legacy-role-' || id WHERE uid = ''")
-                db.execSQL("UPDATE sections SET uid = 'legacy-section-' || id WHERE uid = ''")
-                db.execSQL("UPDATE notes SET uid = 'legacy-note-' || id WHERE uid = ''")
-                db.execSQL("UPDATE footnotes SET uid = 'legacy-footnote-' || id WHERE uid = ''")
-                db.execSQL("UPDATE dialogues SET uid = 'legacy-dialogue-' || id WHERE uid = ''")
-                db.execSQL("UPDATE dialogue_turns SET uid = 'legacy-dialogue-turn-' || id WHERE uid = ''")
-                db.execSQL("UPDATE tazieh_images SET uid = 'legacy-image-' || id WHERE uid = ''")
-
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_fields_uid` ON `fields` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_taziehs_uid` ON `taziehs` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_roles_uid` ON `roles` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_sections_uid` ON `sections` (`uid`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sections_sourceUid` ON `sections` (`sourceUid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_notes_uid` ON `notes` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_footnotes_uid` ON `footnotes` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_dialogues_uid` ON `dialogues` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_dialogue_turns_uid` ON `dialogue_turns` (`uid`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tazieh_images_uid` ON `tazieh_images` (`uid`)")
-            }
-        }
-
-        private val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `notes` ADD COLUMN `sectionUid` TEXT DEFAULT NULL")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `bookmarks` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `sectionUid` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_bookmarks_sectionUid` ON `bookmarks` (`sectionUid`)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `section_tags` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `sectionUid` TEXT NOT NULL, `tag` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_section_tags_sectionUid` ON `section_tags` (`sectionUid`)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `recent_sections` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `sectionUid` TEXT NOT NULL, `position` INTEGER NOT NULL, `visitedAt` INTEGER NOT NULL)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_recent_sections_sectionUid` ON `recent_sections` (`sectionUid`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_recent_sections_position` ON `recent_sections` (`position`)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `reading_history` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `sectionUid` TEXT NOT NULL, `firstReadAt` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, `readCount` INTEGER NOT NULL, `totalSeconds` INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reading_history_sectionUid` ON `reading_history` (`sectionUid`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reading_history_lastReadAt` ON `reading_history` (`lastReadAt`)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `my_roles` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `taziehUid` TEXT NOT NULL, `roleUid` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_my_roles_taziehUid` ON `my_roles` (`taziehUid`)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS `active_days` (`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `dayKey` TEXT NOT NULL)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_active_days_dayKey` ON `active_days` (`dayKey`)")
-            }
-        }
-
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -164,7 +109,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "bookapp.db"
                 )
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    // برای گذارهای قبل از نسخه ۵ که مطمئن نیستیم schema دقیقشان چه بوده،
+                    // همچنان بازسازی خودکار انجام می‌شود.
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
@@ -173,42 +121,75 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
+/**
+ * فایل‌های JSON پوشه‌ی assets/content را که هنوز پردازش نشده‌اند (بر اساس نام فایل)
+ * پیدا کرده و محتوای هرکدام را به دیتابیس اضافه می‌کند، بدون پاک‌کردن محتوای قبلی.
+ * به این ترتیب برای افزودن یک مجلس تعزیه‌ی جدید، کافی است یک فایل JSON تازه در
+ * assets/content قرار بگیرد؛ بقیه‌ی محتوا دست‌نخورده باقی می‌ماند و فقط فایل جدید
+ * به ترتیب (بر اساس نام فایل) به انتهای نقش‌های موجود اضافه یا نقش/تعزیه/زمینه‌ی
+ * تازه ساخته می‌شود.
+ */
+/**
+ * فایل‌های JSON پوشه‌ی assets/content را که هنوز پردازش نشده‌اند (بر اساس نام فایل)
+ * به دیتابیس اضافه می‌کند و شمار فایل‌های تازه‌ی اضافه‌شده را برمی‌گرداند (۰ یعنی
+ * چیز تازه‌ای نبود). اگر این اولین اجرای برنامه نباشد (یعنی قبلاً محتوایی داشته)
+ * و چیزی واقعاً تازه اضافه شده باشد، یک اعلان محلی هم نشان داده می‌شود.
+ */
 suspend fun syncLocalContentFiles(context: Context, db: AppDatabase): Int {
-    val names = context.assets.list("content")?.filter { it.endsWith(".json") && it != "manifest.json" }?.sorted() ?: emptyList()
-    val allFiles = names.map { name ->
+    val allFileNames = context.assets.list("content")?.filter { it.endsWith(".json") }?.sorted() ?: emptyList()
+    // کلید ردیابی «اسم‌فایل:هش‌محتوا» است نه فقط اسم فایل، تا اگر محتوای همان فایل
+    // (برای اصلاح یک جمله یا افزودن مشخصات نویسنده) تغییر کند، دوباره پردازش شود
+    // نه اینکه چون اسمش را قبلاً دیده نادیده گرفته شود.
+    val allFiles = allFileNames.map { name ->
         val text = context.assets.open("content/$name").bufferedReader(Charsets.UTF_8).use { it.readText() }
-        FileWithKey(name, text, "$name:${sha256(text)}", "")
+        FileWithKey(name, text, "$name:${text.hashCode()}")
     }
 
     var processed = Prefs.getProcessedContentFiles(context)
     val hadContentBefore = db.fieldDao().getAll().isNotEmpty()
-    if (!hadContentBefore && processed.isNotEmpty()) processed = emptySet()
+
+    // اگر دیتابیس به هر دلیلی (مثلاً migration مخرب بین نسخه‌ها) خالی شده باشد
+    // ولی Prefs هنوز فایل‌ها را «پردازش‌شده» می‌داند، باید همه چیز دوباره بارگذاری شود.
+    if (!hadContentBefore && processed.isNotEmpty()) {
+        processed = emptySet()
+    }
 
     val newOrChangedFiles = allFiles.filter { it.key !in processed }
     if (newOrChangedFiles.isEmpty()) return 0
 
     for (file in newOrChangedFiles) {
-        val errors = ContentValidator.validate(file.text)
-        if (errors.isNotEmpty()) throw IllegalArgumentException("محتوای ${file.name} نامعتبر است: ${errors.take(3).joinToString("؛ ")}")
-        mergeContentFromJson(db, file.text, ContentUid.source(file.name))
+        mergeContentFromJson(db, file.text)
     }
+    // کل فهرست فعلی (با هشِ فعلیِ هرکدام) را به‌عنوان پردازش‌شده ثبت می‌کنیم؛ کلیدهای
+    // قدیمیِ همان فایل‌ها (با هش قبلی) به‌طور طبیعی دیگر استفاده نمی‌شوند.
     Prefs.setProcessedContentFiles(context, allFiles.map { it.key }.toSet())
 
-    if (hadContentBefore) showNewContentNotification(context, newOrChangedFiles.size)
+    // فقط وقتی اعلان نشان بده که این اولین نصب نبوده (کاربر قبلاً محتوا داشته)
+    // تا کاربرِ تازه‌نصب‌کرده با یک اعلان اضافه و بی‌مورد مواجه نشود
+    if (hadContentBefore) {
+        showNewContentNotification(context, newOrChangedFiles.size)
+    }
+
     return newOrChangedFiles.size
 }
 
-private data class FileWithKey(val name: String, val text: String, val key: String, val legacyKey: String)
+private data class FileWithKey(val name: String, val text: String, val key: String)
 
+/**
+ * محتوای فعلی (زمینه/تعزیه/نقش/بخش) را کامل پاک کرده و از یک متن JSON
+ * که از اینترنت دریافت شده، دوباره می‌سازد. برای «بروزرسانی محتوا بدون
+ * نیاز به ساخت نسخه جدید اپ» استفاده می‌شود.
+ * آدرس پیش‌فرض: فایل sample_data.json روی گیت‌هاب (شاخه main).
+ */
 suspend fun syncRemoteContent(
     db: AppDatabase,
     url: String = "https://raw.githubusercontent.com/lavialireza/tazeahappv-1/main/app/src/main/assets/content/001_sample.json"
 ): Result<Unit> {
     return try {
-        val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { withHttpGet(url) }
-        val errors = ContentValidator.validate(jsonText)
-        if (errors.isNotEmpty()) return Result.failure(IllegalArgumentException("محتوای آنلاین نامعتبر است: ${errors.take(3).joinToString("؛ ")}"))
-        mergeContentFromJson(db, jsonText, ContentUid.source(url))
+        val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            withHttpGet(url)
+        }
+        mergeContentFromJson(db, jsonText)
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)
@@ -227,47 +208,25 @@ private fun withHttpGet(urlString: String): String {
     }
 }
 
-/**
- * Imports content by stable UID. Legacy JSON without UIDs remains supported by title matching.
- * A source UID lets us safely remove sections deleted from a particular content file without
- * touching sections supplied by other files.
- */
-internal suspend fun mergeContentFromJson(db: AppDatabase, jsonText: String, sourceUid: String = ContentUid.source(jsonText)) {
+internal suspend fun mergeContentFromJson(db: AppDatabase, jsonText: String) {
     val fields = JSONArray(jsonText)
     db.withTransaction {
         for (fi in 0 until fields.length()) {
             val fieldObj = fields.getJSONObject(fi)
             val fieldTitle = fieldObj.getString("title")
-            val explicitFieldUid = fieldObj.optString("uid").trim()
-            val fieldUid = explicitFieldUid.ifBlank { ContentUid.derived("field", "root", fieldTitle) }
-            val existingField = db.fieldDao().getByUid(fieldUid)
-                ?: if (explicitFieldUid.isBlank()) db.fieldDao().getByTitle(fieldTitle) else null
-            val fieldId = if (existingField == null) {
-                db.fieldDao().insert(FieldEntity(title = fieldTitle, uid = fieldUid))
-            } else {
-                if (existingField.uid != fieldUid || existingField.title != fieldTitle) {
-                    db.fieldDao().updateIdentity(existingField.id, fieldTitle, fieldUid)
-                }
-                existingField.id
-            }
+            val fieldId = db.fieldDao().getByTitle(fieldTitle)?.id
+                ?: db.fieldDao().insert(FieldEntity(title = fieldTitle))
 
             val taziehs = fieldObj.getJSONArray("taziehs")
             for (ti in 0 until taziehs.length()) {
                 val taziehObj = taziehs.getJSONObject(ti)
                 val taziehTitle = taziehObj.getString("title")
-                val explicitTaziehUid = taziehObj.optString("uid").trim()
-                val taziehUid = explicitTaziehUid.ifBlank { ContentUid.derived("tazieh", fieldUid, taziehTitle) }
-                val existingTazieh = db.taziehDao().getByUid(taziehUid)
-                    ?: if (explicitTaziehUid.isBlank()) db.taziehDao().getByTitle(fieldId, taziehTitle) else null
-                val taziehId = if (existingTazieh == null) {
-                    db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = taziehTitle, uid = taziehUid))
-                } else {
-                    if (existingTazieh.uid != taziehUid || existingTazieh.title != taziehTitle) {
-                        db.taziehDao().updateIdentity(existingTazieh.id, fieldId, taziehTitle, taziehUid)
-                    }
-                    existingTazieh.id
-                }
+                val existingTazieh = db.taziehDao().getByTitle(fieldId, taziehTitle)
+                val taziehId = existingTazieh?.id
+                    ?: db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = taziehTitle))
 
+                // اگر مشخصات نویسنده/ایمیل در فایل JSON آمده باشد، همیشه به‌روزرسانی می‌شود
+                // (چه تعزیه تازه ساخته شده باشد چه از قبل موجود بوده)
                 val author = taziehObj.optString("author", "").ifBlank { null }
                 val authorEmail = taziehObj.optString("authorEmail", "").ifBlank { null }
                 if (author != null || authorEmail != null) {
@@ -282,67 +241,47 @@ internal suspend fun mergeContentFromJson(db: AppDatabase, jsonText: String, sou
                 for (ri in 0 until roles.length()) {
                     val roleObj = roles.getJSONObject(ri)
                     val roleTitle = roleObj.getString("title")
-                    val explicitRoleUid = roleObj.optString("uid").trim()
-                    val roleUid = explicitRoleUid.ifBlank { ContentUid.derived("role", taziehUid, roleTitle) }
-                    val roleOrder = ri
-                    val existingRole = db.roleDao().getByUid(roleUid)
-                        ?: if (explicitRoleUid.isBlank()) db.roleDao().getByTitle(taziehId, roleTitle) else null
-                    val roleId = if (existingRole == null) {
-                        db.roleDao().insert(RoleEntity(taziehId = taziehId, title = roleTitle, orderIndex = roleOrder, uid = roleUid))
-                    } else {
-                        db.roleDao().updateFromContent(existingRole.id, taziehId, roleTitle, roleOrder, roleUid)
-                        existingRole.id
-                    }
+                    val roleId = db.roleDao().getByTitle(taziehId, roleTitle)?.id
+                        ?: run {
+                            val nextRoleOrder = db.roleDao().getMaxOrderIndex(taziehId) + 1
+                            db.roleDao().insert(RoleEntity(taziehId = taziehId, title = roleTitle, orderIndex = nextRoleOrder))
+                        }
 
+                    var nextOrderIndex = db.sectionDao().getMaxOrderIndex(roleId) + 1
                     val sections = roleObj.getJSONArray("sections")
-                    val seenSectionUids = mutableSetOf<String>()
                     for (si in 0 until sections.length()) {
                         val secObj = sections.getJSONObject(si)
                         val sectionTitle = secObj.getString("title")
-                        val explicitSectionUid = secObj.optString("uid").trim()
-                        val sectionUid = explicitSectionUid.ifBlank {
-                            ContentUid.derivedWithIndex("section", roleUid, sectionTitle, si)
-                        }
                         val newContent = secObj.getString("content")
                         val newAudio = secObj.optString("audio", "").ifBlank { null }
-                        seenSectionUids += sectionUid
 
-                        val existingSection = db.sectionDao().getByUid(sectionUid)
-                            ?: if (explicitSectionUid.isBlank()) db.sectionDao().getByTitle(roleId, sectionTitle) else null
-                        if (existingSection == null) {
+                        // بروزرسانی: اگر بخشی با همین عنوان زیر همین نقش از قبل وجود دارد،
+                        // به‌جای اضافه‌کردن یک نسخه‌ی تکراری، متنش (و صدایش در صورت وجود) جایگزین می‌شود
+                        // — دقیقاً برای همین که اگر یک جمله را در Word اصلاح کردید و دوباره بروزرسانی
+                        // زدید، همان بخش در اپ هم اصلاح شود، نه اینکه یک بخش تکراری اضافه شود.
+                        val existingSection = db.sectionDao().getByTitle(roleId, sectionTitle)
+                        if (existingSection != null) {
+                            if (existingSection.content != newContent) {
+                                db.sectionDao().updateContent(existingSection.id, newContent)
+                            }
+                            if (newAudio != null && newAudio != existingSection.audioUrl) {
+                                db.sectionDao().updateAudioUrl(existingSection.id, newAudio)
+                            }
+                        } else {
                             db.sectionDao().insert(
                                 SectionEntity(
                                     roleId = roleId,
-                                    orderIndex = si,
+                                    orderIndex = nextOrderIndex,
                                     title = sectionTitle,
                                     content = newContent,
-                                    audioUrl = newAudio,
-                                    uid = sectionUid,
-                                    sourceUid = sourceUid
+                                    audioUrl = newAudio
                                 )
                             )
-                        } else {
-                            db.sectionDao().updateFromContent(
-                                id = existingSection.id,
-                                roleId = roleId,
-                                title = sectionTitle,
-                                content = newContent,
-                                audioUrl = newAudio ?: existingSection.audioUrl,
-                                orderIndex = si,
-                                uid = sectionUid,
-                                sourceUid = sourceUid
-                            )
+                            nextOrderIndex++
                         }
                     }
-
-                    // Only sections owned by this source are candidates for removal.
-                    db.sectionDao().getBySourceAndRole(sourceUid, roleId)
-                        .filter { it.uid !in seenSectionUids }
-                        .forEach { db.sectionDao().delete(it.id) }
                 }
             }
         }
     }
 }
-
-private fun sha256(text: String): String = ContentUid.sha256(text)

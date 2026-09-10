@@ -116,34 +116,14 @@ private suspend fun exportPdfInternal(
                 .setLineSpacing(6f, 1f)
                 .build()
 
-            // متن طولانی را خط‌به‌خط بین چند صفحه تقسیم می‌کنیم تا از صفحه بیرون نزند.
-            var startLine = 0
-            while (startLine < body.lineCount) {
-                val available = (pageHeight - margin - y).toInt()
-                if (available < body.getLineBottom(startLine) - body.getLineTop(startLine)) {
-                    newPage()
-                    continue
-                }
-
-                var endLine = body.getLineForVertical(body.getLineTop(startLine) + available)
-                if (endLine <= startLine) endLine = startLine + 1
-                endLine = endLine.coerceAtMost(body.lineCount)
-
-                val chunkHeight = body.getLineTop(endLine) - body.getLineTop(startLine)
-                canvas.save()
-                canvas.clipRect(margin, y, pageWidth - margin, pageHeight - margin)
-                canvas.translate(margin, y - body.getLineTop(startLine))
-                body.draw(canvas)
-                canvas.restore()
-                y += chunkHeight
-                startLine = endLine
-
-                if (startLine < body.lineCount) {
-                    newPage()
-                } else {
-                    y += 24f
-                }
-            }
+            // چون ممکن است متن طولانی از یک صفحه بیشتر باشد، به‌صورت ساده هر بخش را
+            // یکجا در صفحه فعلی یا صفحه بعد رسم می‌کنیم
+            if (y + body.height > pageHeight - margin && y > margin + 40f) newPage()
+            canvas.save()
+            canvas.translate(margin, y)
+            body.draw(canvas)
+            canvas.restore()
+            y += body.height + 24f
         }
     }
 
