@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
         // مهاجرت تدریجی داده‌های قدیمی SharedPreferences به Room. این کار فقط داده‌های
         // کاربر را کپی می‌کند و تا زمان تکمیل مهاجرت UI، سازگاری نسخه قدیمی را حفظ می‌کند.
-        androidx.lifecycle.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { migratePrefsUserDataToRoom(this@MainActivity, AppDatabase.getInstance(this@MainActivity)) }
         }
 
