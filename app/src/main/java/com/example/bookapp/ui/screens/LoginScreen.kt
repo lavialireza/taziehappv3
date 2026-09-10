@@ -59,11 +59,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
         Button(
             onClick = {
-                val savedPassword = Prefs.getAppPassword(context)
                 when {
                     username.isBlank() -> error = "لطفاً نام کاربری را وارد کنید"
-                    savedPassword.isBlank() -> onLoginSuccess() // هنوز رمزی تنظیم نشده؛ ورود آزاد است
-                    password != savedPassword -> error = "رمز عبور اشتباه است"
+                    !Prefs.hasAppPassword(context) -> onLoginSuccess() // هنوز رمزی تنظیم نشده؛ ورود آزاد است
+                    !Prefs.verifyAppPassword(context, password) -> error = "رمز عبور اشتباه است"
                     else -> onLoginSuccess()
                 }
             },

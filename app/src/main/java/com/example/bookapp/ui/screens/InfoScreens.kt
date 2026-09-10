@@ -519,7 +519,7 @@ private fun ChangePasswordSection() {
     var confirmPassword by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
-    val hasPasswordSet = Prefs.getAppPassword(context).isNotBlank()
+    val hasPasswordSet = Prefs.hasAppPassword(context)
 
     Column {
         if (hasPasswordSet) {
@@ -560,9 +560,9 @@ private fun ChangePasswordSection() {
             Spacer(Modifier.height(8.dp))
         }
         Button(onClick = {
-            val savedPassword = Prefs.getAppPassword(context)
+            val hasPassword = Prefs.hasAppPassword(context)
             when {
-                savedPassword.isNotBlank() && currentPassword != savedPassword -> {
+                hasPassword && !Prefs.verifyAppPassword(context, currentPassword) -> {
                     isError = true
                     message = "رمز فعلی درست نیست"
                 }

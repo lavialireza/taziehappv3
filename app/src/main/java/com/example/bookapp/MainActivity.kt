@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import com.example.bookapp.data.Prefs
+import com.example.bookapp.data.AppDatabase
+import com.example.bookapp.data.migratePrefsUserDataToRoom
 import com.example.bookapp.ui.AppNavigation
 import com.example.bookapp.ui.theme.colorSchemeFor
 import com.example.bookapp.ui.theme.typographyFor
@@ -46,6 +49,12 @@ class MainActivity : ComponentActivity() {
         // اگر اپ از طریق یک لینک taziehapp://section/{id} باز شده (اشتراک‌گذاری مستقیم یک بخش)
         val deepLinkSectionId = intent?.data?.let { uri ->
             if (uri.scheme == "taziehapp" && uri.host == "section") uri.lastPathSegment?.toLongOrNull() else null
+        }
+
+        // مهاجرت تدریجی داده‌های قدیمی SharedPreferences به Room. این کار فقط داده‌های
+        // کاربر را کپی می‌کند و تا زمان تکمیل مهاجرت UI، سازگاری نسخه قدیمی را حفظ می‌کند.
+        androidx.lifecycle.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { migratePrefsUserDataToRoom(this@MainActivity, AppDatabase.getInstance(this@MainActivity)) }
         }
 
         setContent {

@@ -30,16 +30,17 @@ class DataLayerTest {
     @Before
     fun setUp() = runTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
 
-        fieldId = db.fieldDao().insert(FieldEntity(title = "اصفهان"))
-        taziehId = db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = "عاشورا"))
-        roleAId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "امام حسین", orderIndex = 0))
-        roleBId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "علی‌اکبر", orderIndex = 1))
-        sectionAId = db.sectionDao().insert(SectionEntity(roleId = roleAId, orderIndex = 0, title = "وداع", content = "بیت امام"))
-        sectionBId = db.sectionDao().insert(SectionEntity(roleId = roleBId, orderIndex = 0, title = "جواب", content = "بیت علی‌اکبر"))
+        fieldId = db.fieldDao().insert(FieldEntity(title = "اصفهان", uid = "field-test"))
+        taziehId = db.taziehDao().insert(TaziehEntity(fieldId = fieldId, title = "عاشورا", uid = "tazieh-test"))
+        roleAId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "امام حسین", orderIndex = 0, uid = "role-imam"))
+        roleBId = db.roleDao().insert(RoleEntity(taziehId = taziehId, title = "علی‌اکبر", orderIndex = 1, uid = "role-akbar"))
+        sectionAId = db.sectionDao().insert(SectionEntity(roleId = roleAId, orderIndex = 0, title = "وداع", content = "بیت امام", uid = "section-goodbye"))
+        sectionBId = db.sectionDao().insert(SectionEntity(roleId = roleBId, orderIndex = 0, title = "جواب", content = "بیت علی‌اکبر", uid = "section-answer"))
     }
 
     @After
@@ -98,46 +99,61 @@ class DataLayerTest {
     }
 
     @Test
-    fun `backup json round-trips notes bookmarks footnotes and dialogues`() = runTest {
+    fun `portable v2 backup restores by uid into database with different numeric ids`() = runTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-
-        db.noteDao().insert(NoteEntity(title = "یادداشت من", content = "متن یادداشت"))
+        db.noteDao().insert(NoteEntity(title = "یادداشت من", content = "متن یادداشت", uid = "note-test"))
         Prefs.toggleBookmark(context, sectionAId)
-        db.footnoteDao().insert(FootnoteEntity(sectionId = sectionAId, term = "وداع", explanation = "خداحافظی"))
+        db.footnoteDao().insert(FootnoteEntity(sectionId = sectionAId, term = "وداع", explanation = "خداحافظی", uid = "footnote-test"))
         Prefs.setMyRole(context, taziehId, roleAId)
-        val dialogueId = db.dialogueDao().insert(DialogueEntity(taziehId = taziehId, title = "گفتگوی تست"))
-        db.dialogueTurnDao().insert(DialogueTurnEntity(dialogueId = dialogueId, sectionId = sectionAId, orderIndex = 0))
+        val dialogueId = db.dialogueDao().insert(DialogueEntity(taziehId = taziehId, title = "گفتگوی تست", uid = "dialogue-test"))
+        db.dialogueTurnDao().insert(DialogueTurnEntity(dialogueId = dialogueId, sectionId = sectionAId, orderIndex = 0, uid = "turn-test"))
 
         val json = buildBackupJson(context, db)
-
-        // نوشتن json در یک فایل موقت و خواندنش از طریق Uri، دقیقاً مثل جریان واقعی برنامه
         val tempFile = File.createTempFile("backup_test", ".json")
         tempFile.writeText(json)
         val uri = android.net.Uri.fromFile(tempFile)
 
-        // یک دیتابیس تازه و خالی برای شبیه‌سازی «بازیابی روی یک نصب جدید»
         val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        val freshFieldId = freshDb.fieldDao().insert(FieldEntity(title = "اصفهان"))
-        val freshTaziehId = freshDb.taziehDao().insert(TaziehEntity(fieldId = freshFieldId, title = "عاشورا"))
-        val freshRoleId = freshDb.roleDao().insert(RoleEntity(taziehId = freshTaziehId, title = "امام حسین"))
-        val freshSectionId = freshDb.sectionDao().insert(SectionEntity(roleId = freshRoleId, orderIndex = 0, title = "وداع", content = "بیت امام"))
+            .allowMainThreadQueries().build()
+        // Add unrelated records first so destination auto-generated IDs are different.
+        val otherField = freshDb.fieldDao().insert(FieldEntity(title = "زمینه دیگر", uid = "other-field"))
+        val otherTazieh = freshDb.taziehDao().insert(TaziehEntity(fieldId = otherField, title = "تعزیه دیگر", uid = "other-tazieh"))
+        val otherRole = freshDb.roleDao().insert(RoleEntity(taziehId = otherTazieh, title = "نقش دیگر", uid = "other-role"))
+        freshDb.sectionDao().insert(SectionEntity(roleId = otherRole, orderIndex = 0, title = "بخش دیگر", content = "متن دیگر", uid = "other-section"))
+
+        val freshFieldId = freshDb.fieldDao().insert(FieldEntity(title = "اصفهان", uid = "field-test"))
+        val freshTaziehId = freshDb.taziehDao().insert(TaziehEntity(fieldId = freshFieldId, title = "عاشورا", uid = "tazieh-test"))
+        val freshRoleId = freshDb.roleDao().insert(RoleEntity(taziehId = freshTaziehId, title = "امام حسین", uid = "role-imam"))
+        val freshSectionId = freshDb.sectionDao().insert(SectionEntity(roleId = freshRoleId, orderIndex = 0, title = "وداع", content = "بیت امام", uid = "section-goodbye"))
 
         val result = restoreBackupFromUri(context, freshDb, uri)
         assertTrue(result.isSuccess)
-
-        val restoredNotes = freshDb.noteDao().getAll()
-        assertEquals(1, restoredNotes.size)
-        assertEquals("یادداشت من", restoredNotes[0].title)
-
-        val restoredFootnotes = freshDb.footnoteDao().getBySection(sectionAId)
-        assertTrue(restoredFootnotes.isNotEmpty())
-
-        val restoredDialogues = freshDb.dialogueDao().getByTazieh(freshTaziehId)
-        assertTrue(restoredDialogues.any { it.title == "گفتگوی تست" })
+        assertEquals(1, freshDb.noteDao().getAll().count { it.uid == "note-test" })
+        assertTrue(freshDb.footnoteDao().getBySection(freshSectionId).any { it.uid == "footnote-test" })
+        assertTrue(freshDb.dialogueDao().getByTazieh(freshTaziehId).any { it.uid == "dialogue-test" })
+        assertTrue(Prefs.isBookmarked(context, freshSectionId))
+        assertEquals(freshRoleId, Prefs.getMyRole(context, freshTaziehId))
 
         tempFile.delete()
         freshDb.close()
     }
+
+    @Test
+    fun `restoring same v2 backup twice does not duplicate notes or dialogues`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        db.noteDao().insert(NoteEntity(title = "یادداشت من", content = "متن یادداشت", uid = "note-test"))
+        val dialogueId = db.dialogueDao().insert(DialogueEntity(taziehId = taziehId, title = "گفتگوی تست", uid = "dialogue-test"))
+        db.dialogueTurnDao().insert(DialogueTurnEntity(dialogueId = dialogueId, sectionId = sectionAId, orderIndex = 0, uid = "turn-test"))
+        val json = buildBackupJson(context, db)
+        val tempFile = File.createTempFile("backup_test", ".json").apply { writeText(json) }
+        val uri = android.net.Uri.fromFile(tempFile)
+
+        restoreBackupFromUri(context, db, uri)
+        restoreBackupFromUri(context, db, uri)
+
+        assertEquals(1, db.noteDao().getAll().count { it.uid == "note-test" })
+        assertEquals(1, db.dialogueDao().getByTazieh(taziehId).count { it.uid == "dialogue-test" })
+        tempFile.delete()
+    }
+
 }
