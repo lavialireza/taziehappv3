@@ -44,6 +44,10 @@ import com.example.bookapp.data.exportContentJson
 import com.example.bookapp.data.importContentJson
 import com.example.bookapp.data.previewContentImport
 import com.example.bookapp.data.readJsonFromUri
+import com.example.bookapp.data.WordImportPreview
+import com.example.bookapp.data.importWordContent
+import com.example.bookapp.data.previewWordImport
+import com.example.bookapp.data.readWordFromUri
 import com.example.bookapp.data.NoteEntity
 import com.example.bookapp.data.Prefs
 import com.example.bookapp.data.SearchResult
@@ -464,6 +468,8 @@ fun AppNavigation(
             var message by remember { mutableStateOf<String?>(null) }
             var importPreview by remember { mutableStateOf<ContentImportPreview?>(null) }
             var pendingImportJson by remember { mutableStateOf<String?>(null) }
+            var wordPreview by remember { mutableStateOf<WordImportPreview?>(null) }
+            var pendingWordBytes by remember { mutableStateOf<ByteArray?>(null) }
             val scope = androidx.compose.runtime.rememberCoroutineScope()
             val exportLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.CreateDocument("application/json")
@@ -495,6 +501,23 @@ fun AppNavigation(
                     } finally { busy = false }
                 }
             }
+            val wordImportLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) scope.launch {
+                    busy = true
+                    try {
+                        val bytes = readWordFromUri(context, uri)
+                        val (preview, _) = previewWordImport(db, bytes)
+                        pendingWordBytes = if (preview.valid) bytes else null
+                        wordPreview = preview
+                    } catch (e: Exception) {
+                        pendingWordBytes = null
+                        wordPreview = WordImportPreview(false, listOf("خطا در خواندن فایل Word: ${e.message ?: "خطای نامشخص"}"))
+                    } finally { busy = false }
+                }
+            }
+
             suspend fun reload() {
                 val fields = db.fieldDao().getAll()
                 val taziehs = db.taziehDao().getAll()
@@ -558,6 +581,7 @@ fun AppNavigation(
                 onOpenEditor = { navController.navigate(ROUTE_CONTENT_EDITOR) },
                 onImportJson = { importLauncher.launch(arrayOf("application/json", "text/json", "text/plain")) },
                 onExportJson = { exportLauncher.launch("tazieh-content-compatible.json") },
+                onImportWord = { wordImportLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream")) },
                 onBack = { navController.popBackStack() }
             )
 
@@ -607,6 +631,57 @@ fun AppNavigation(
                     dismissButton = {
                         TextButton(onClick = { importPreview = null; pendingImportJson = null }) { Text("انصراف") }
                     }
+                )
+            }
+
+            val wp = wordPreview
+            if (wp != null) {
+                AlertDialog(
+                    onDismissRequest = { wordPreview = null; pendingWordBytes = null },
+                    title = { Text(if (wp.valid) "پیش‌نمایش ورود Word" else "فایل Word نامعتبر") },
+                    text = {
+                        if (!wp.valid) {
+                            Column { wp.errors.take(10).forEach { Text("• $it") } }
+                        } else {
+                            Column {
+                                Text("ساختار Word مطابق قرارداد ورود محتوای برنامه شناسایی شد.")
+                                Spacer(Modifier.height(8.dp))
+                                Text("Heading 1 → زمینه")
+                                Text("Heading 2 → تعزیه")
+                                Text("Heading 3 → نقش")
+                                Text("Heading 4 → بخش")
+                                Text("پاراگراف‌های معمولی زیر Heading 4 → متن بخش")
+                                Spacer(Modifier.height(8.dp))
+                                Text("زمینه: ${wp.fields} | تعزیه: ${wp.taziehs}")
+                                Text("نقش: ${wp.roles} | بخش: ${wp.sections}")
+                                Text("پاراگراف‌های متن: ${wp.paragraphs}")
+                                Text("موجود/قابل‌به‌روزرسانی: ${wp.existingItems}")
+                                Text("جدید: ${wp.newItems}")
+                                Spacer(Modifier.height(8.dp))
+                                Text("فقط ساختار محتوا و متن وارد می‌شود؛ یادداشت‌ها، نشانک‌ها، تصاویر، گفتگوها و اطلاعات شخصی تغییر نمی‌کنند.")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        if (wp.valid && pendingWordBytes != null) {
+                            TextButton(onClick = {
+                                val bytes = pendingWordBytes
+                                wordPreview = null
+                                pendingWordBytes = null
+                                if (bytes != null) scope.launch {
+                                    busy = true
+                                    try {
+                                        val result = importWordContent(db, bytes)
+                                        reload()
+                                        message = "ورود Word با موفقیت انجام شد: ${result.newItems} مورد جدید و ${result.existingItems} مورد موجود/قابل‌به‌روزرسانی."
+                                    } catch (e: Exception) {
+                                        message = "خطا در ورود Word: ${e.message ?: "خطای نامشخص"}"
+                                    } finally { busy = false }
+                                }
+                            }) { Text("تأیید و ورود") }
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = { wordPreview = null; pendingWordBytes = null }) { Text("انصراف") } }
                 )
             }
         }

@@ -33,6 +33,7 @@ fun ContentManagementScreen(
     onOpenEditor: () -> Unit,
     onImportJson: () -> Unit,
     onExportJson: () -> Unit,
+    onImportWord: () -> Unit,
     busy: Boolean,
     message: String?,
     onBack: () -> Unit
@@ -116,6 +117,10 @@ fun ContentManagementScreen(
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = onImportJson, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                             Text("ورود JSON سازگار با برنامه جانبی")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = onImportWord, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                            Text("ورود از Word (.docx)")
                         }
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = onExportJson, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
