@@ -187,20 +187,21 @@ fun AppNavigation(
         composable(ROUTE_SEARCH) {
             var fields by remember { mutableStateOf(listOf<com.example.bookapp.data.FieldEntity>()) }
             var allTaziehs by remember { mutableStateOf(listOf<com.example.bookapp.data.TaziehEntity>()) }
+            var allRoles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
+            var searchCorpus by remember { mutableStateOf(emptyList<com.example.bookapp.data.SearchCorpusRow>()) }
             var bookmarkedIds by remember { mutableStateOf(Prefs.getBookmarks(context)) }
             LaunchedEffect(Unit) {
                 fields = db.fieldDao().getAll()
                 allTaziehs = db.taziehDao().getAll()
+                allRoles = allTaziehs.flatMap { db.roleDao().getByTazieh(it.id) }
+                searchCorpus = db.searchDao().getSearchCorpus()
             }
             SearchScreen(
                 fields = fields,
                 allTaziehs = allTaziehs,
-                onSearch = { query, fieldId, taziehId ->
-                    when {
-                        taziehId != null -> db.searchDao().searchInTazieh(query, taziehId)
-                        fieldId != null -> db.searchDao().searchInField(query, fieldId)
-                        else -> db.searchDao().search(query)
-                    }
+                allRoles = allRoles,
+                onSearch = { query, options ->
+                    com.example.bookapp.data.AdvancedSearchEngine.search(searchCorpus, query, options)
                 },
                 onResultClick = { result -> navController.navigate("text/${result.sectionId}") },
                 onSearchDialogues = { query -> db.searchDao().searchDialogues(query) },

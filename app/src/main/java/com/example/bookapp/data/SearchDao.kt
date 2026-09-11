@@ -176,6 +176,29 @@ interface SearchDao {
 
     @Query(
         """
+        SELECT
+            sections.id AS sectionId,
+            sections.title AS sectionTitle,
+            sections.content AS content,
+            roles.title AS roleTitle,
+            taziehs.title AS taziehTitle,
+            fields.title AS fieldTitle,
+            fields.id AS fieldId,
+            taziehs.id AS taziehId,
+            roles.id AS roleId,
+            GROUP_CONCAT(COALESCE(footnotes.term, '') || ' ' || COALESCE(footnotes.explanation, ''), ' ') AS footnotesText
+        FROM sections
+        INNER JOIN roles ON sections.roleId = roles.id
+        INNER JOIN taziehs ON roles.taziehId = taziehs.id
+        INNER JOIN fields ON taziehs.fieldId = fields.id
+        LEFT JOIN footnotes ON footnotes.sectionId = sections.id
+        GROUP BY sections.id, sections.title, sections.content, roles.title, taziehs.title, fields.title, fields.id, taziehs.id, roles.id
+        """
+    )
+    suspend fun getSearchCorpus(): List<SearchCorpusRow>
+
+    @Query(
+        """
         SELECT dialogues.id AS dialogueId, dialogues.title AS dialogueTitle, taziehs.title AS taziehTitle
         FROM dialogues
         INNER JOIN taziehs ON dialogues.taziehId = taziehs.id
