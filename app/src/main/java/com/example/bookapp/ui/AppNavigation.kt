@@ -432,35 +432,40 @@ fun AppNavigation(
         }
 
         composable(ROUTE_FIELDS) {
-            var catalog by remember { mutableStateOf(emptyList<TaziehCatalogItem>()) }
+            var fields by remember { mutableStateOf(emptyList<FieldCatalogItem>()) }
             LaunchedEffect(Unit) {
-                val fields = db.fieldDao().getAll()
-                val fieldMap = fields.associateBy { it.id }
-                val taziehs = db.taziehDao().getAll()
-                catalog = taziehs.map { t ->
-                    val roles = db.roleDao().getByTazieh(t.id)
-                    val hasAudio = roles.any { r -> db.sectionDao().getByRole(r.id).any { !it.audioUrl.isNullOrBlank() } }
-                    TaziehCatalogItem(t.id, t.fieldId, fieldMap[t.fieldId]?.title ?: "بدون زمینه", t.title, t.author, roles.size, hasAudio)
+                val allFields = db.fieldDao().getAll()
+                fields = allFields.map { field ->
+                    FieldCatalogItem(
+                        id = field.id,
+                        title = field.title,
+                        taziehCount = db.taziehDao().getByField(field.id).size
+                    )
                 }
             }
-            TaziehCatalogScreen(
-                items = catalog,
-                onOpen = { item -> navController.navigate("roles/${item.id}/${item.title}") },
+            FieldsScreen(
+                items = fields,
+                onOpen = { field -> navController.navigate("taziehs/${field.id}/${field.title}") },
                 onBack = { navController.popBackStack() }
             )
         }
 
         composable(ROUTE_TAZIEHS) { backStackEntry ->
             val fieldId = backStackEntry.arguments?.getString("fieldId")?.toLongOrNull() ?: 0L
-            val fieldTitle = backStackEntry.arguments?.getString("fieldTitle") ?: ""
-            var items by remember { mutableStateOf(listOf<ListItemData>()) }
+            var catalog by remember { mutableStateOf(emptyList<TaziehCatalogItem>()) }
             LaunchedEffect(fieldId) {
-                items = db.taziehDao().getByField(fieldId).map { ListItemData(it.id, it.title) }
+                val taziehs = db.taziehDao().getByField(fieldId)
+                val fieldTitle = db.fieldDao().getAll().firstOrNull { it.id == fieldId }?.title ?: "زمینه"
+                catalog = taziehs.map { t ->
+                    val roles = db.roleDao().getByTazieh(t.id)
+                    val hasAudio = roles.any { r -> db.sectionDao().getByRole(r.id).any { !it.audioUrl.isNullOrBlank() } }
+                    TaziehCatalogItem(t.id, fieldId, fieldTitle, t.title, t.author, roles.size, hasAudio)
+                }
             }
-            GenericListScreen(
-                screenTitle = fieldTitle,
-                items = items,
-                onItemClick = { navController.navigate("roles/${it.id}/${it.title}") },
+            TaziehCatalogScreen(
+                items = catalog,
+                initialFieldId = fieldId,
+                onOpen = { item -> navController.navigate("roles/${item.id}/${item.title}") },
                 onBack = { navController.popBackStack() }
             )
         }

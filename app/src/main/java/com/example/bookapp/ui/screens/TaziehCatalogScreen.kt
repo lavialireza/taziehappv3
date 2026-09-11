@@ -29,10 +29,11 @@ data class TaziehCatalogItem(
 fun TaziehCatalogScreen(
     items: List<TaziehCatalogItem>,
     onOpen: (TaziehCatalogItem) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    initialFieldId: Long? = null
 ) {
     var query by remember { mutableStateOf("") }
-    var selectedField by remember { mutableStateOf<Long?>(null) }
+    var selectedField by remember { mutableStateOf<Long?>(initialFieldId) }
     var audioOnly by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(0) }
     var menuExpanded by remember { mutableStateOf(false) }
@@ -57,7 +58,7 @@ fun TaziehCatalogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("همه تعزیه‌ها (${filtered.size})") },
+                title = { Text(if (selectedField == null) "همه تعزیه‌ها (${filtered.size})" else "تعزیه‌های این زمینه (${filtered.size})") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "بازگشت") } },
                 actions = {
                     IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.FilterList, "فیلتر") }
