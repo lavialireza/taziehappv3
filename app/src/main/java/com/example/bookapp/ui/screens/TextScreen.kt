@@ -310,6 +310,7 @@ fun TextScreen(
             val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * fontScale
             Text(
                 content,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = baseTextStyle.copy(
                     fontSize = scaledFontSize,
                     lineHeight = scaledLineHeight
