@@ -40,6 +40,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.bookapp.data.AppDatabase
 import com.example.bookapp.data.ContentImportPreview
+import com.example.bookapp.data.ContentHealthReport
+import com.example.bookapp.data.buildDetailedContentHealthReport
 import com.example.bookapp.data.exportContentJson
 import com.example.bookapp.data.importContentJson
 import com.example.bookapp.data.previewContentImport
@@ -470,6 +472,7 @@ fun AppNavigation(
             var pendingImportJson by remember { mutableStateOf<String?>(null) }
             var wordPreview by remember { mutableStateOf<WordImportPreview?>(null) }
             var pendingWordBytes by remember { mutableStateOf<ByteArray?>(null) }
+            var healthReport by remember { mutableStateOf<ContentHealthReport?>(null) }
             val scope = androidx.compose.runtime.rememberCoroutineScope()
             val exportLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.CreateDocument("application/json")
@@ -582,6 +585,7 @@ fun AppNavigation(
                 onImportJson = { importLauncher.launch(arrayOf("application/json", "text/json", "text/plain")) },
                 onExportJson = { exportLauncher.launch("tazieh-content-compatible.json") },
                 onImportWord = { wordImportLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream")) },
+                onDetailedHealthCheck = { scope.launch { busy = true; try { healthReport = buildDetailedContentHealthReport(db) } finally { busy = false } } },
                 onBack = { navController.popBackStack() }
             )
 
@@ -682,6 +686,38 @@ fun AppNavigation(
                         }
                     },
                     dismissButton = { TextButton(onClick = { wordPreview = null; pendingWordBytes = null }) { Text("انصراف") } }
+                )
+            }
+
+            val hr = healthReport
+            if (hr != null) {
+                AlertDialog(
+                    onDismissRequest = { healthReport = null },
+                    title = { Text("گزارش عمیق سلامت محتوا") },
+                    text = {
+                        Column(Modifier.heightIn(max = 520.dp)) {
+                            Text("بررسی‌شده: ${hr.checkedFields} زمینه، ${hr.checkedTaziehs} تعزیه، ${hr.checkedRoles} نقش، ${hr.checkedSections} بخش")
+                            Spacer(Modifier.height(8.dp))
+                            Text("بدون عنوان: ${hr.emptyTitles} | بدون متن: ${hr.emptyTexts}")
+                            Text("عنوان تکراری: ${hr.duplicateTitles} | مشکل ترتیب: ${hr.orderIssues}")
+                            Text("آدرس صوت مشکوک: ${hr.invalidAudio}")
+                            Spacer(Modifier.height(10.dp))
+                            if (hr.errors.isEmpty() && hr.warnings.isEmpty()) {
+                                Text("✓ هیچ مورد قابل‌توجهی پیدا نشد.", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                            } else {
+                                if (hr.errors.isNotEmpty()) {
+                                    Text("خطاها", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                    hr.errors.take(12).forEach { Text("• $it", style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+                                }
+                                if (hr.warnings.isNotEmpty()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("هشدارها", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                    hr.warnings.take(16).forEach { Text("• $it", style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { healthReport = null }) { Text("بستن") } }
                 )
             }
         }

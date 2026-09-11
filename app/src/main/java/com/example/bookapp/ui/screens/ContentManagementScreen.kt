@@ -34,6 +34,7 @@ fun ContentManagementScreen(
     onImportJson: () -> Unit,
     onExportJson: () -> Unit,
     onImportWord: () -> Unit,
+    onDetailedHealthCheck: () -> Unit,
     busy: Boolean,
     message: String?,
     onBack: () -> Unit
@@ -139,6 +140,12 @@ fun ContentManagementScreen(
                             Text("سلامت محتوا", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = onDetailedHealthCheck, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.FactCheck, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("بررسی عمیق سلامت محتوا")
+                        }
+                        Spacer(Modifier.height(10.dp))
                         if (healthWarnings.isEmpty()) {
                             Text("✓ ساختار فعلی محتوا سالم است.", color = MaterialTheme.colorScheme.primary)
                         } else {
