@@ -432,14 +432,20 @@ fun AppNavigation(
         }
 
         composable(ROUTE_FIELDS) {
-            var items by remember { mutableStateOf(listOf<ListItemData>()) }
+            var catalog by remember { mutableStateOf(emptyList<TaziehCatalogItem>()) }
             LaunchedEffect(Unit) {
-                items = db.fieldDao().getAll().map { ListItemData(it.id, it.title) }
+                val fields = db.fieldDao().getAll()
+                val fieldMap = fields.associateBy { it.id }
+                val taziehs = db.taziehDao().getAll()
+                catalog = taziehs.map { t ->
+                    val roles = db.roleDao().getByTazieh(t.id)
+                    val hasAudio = roles.any { r -> db.sectionDao().getByRole(r.id).any { !it.audioUrl.isNullOrBlank() } }
+                    TaziehCatalogItem(t.id, t.fieldId, fieldMap[t.fieldId]?.title ?: "بدون زمینه", t.title, t.author, roles.size, hasAudio)
+                }
             }
-            GenericListScreen(
-                screenTitle = "زمینه‌ها",
-                items = items,
-                onItemClick = { navController.navigate("taziehs/${it.id}/${it.title}") },
+            TaziehCatalogScreen(
+                items = catalog,
+                onOpen = { item -> navController.navigate("roles/${item.id}/${item.title}") },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -462,108 +468,41 @@ fun AppNavigation(
         composable(ROUTE_ROLES) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
-            var items by remember { mutableStateOf(listOf<ListItemData>()) }
-            var compareMode by remember { mutableStateOf(false) }
-            var selectMyRoleMode by remember { mutableStateOf(false) }
-            var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+            var roles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
             var myRoleId by remember { mutableStateOf<Long?>(null) }
-            val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+            var roleItems by remember { mutableStateOf(listOf<ProfessionalRoleItem>()) }
             val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-            LaunchedEffect(taziehId) {
-                items = db.roleDao().getByTazieh(taziehId).map { ListItemData(it.id, it.title) }
+            suspend fun reloadRoles() {
+                roles = db.roleDao().getByTazieh(taziehId)
                 myRoleId = Prefs.getMyRole(context, taziehId)
+                roleItems = roles.map { role ->
+                    val sections = db.sectionDao().getByRole(role.id)
+                    ProfessionalRoleItem(
+                        id = role.id,
+                        title = role.title,
+                        sectionCount = sections.size,
+                        firstVerse = sections.firstOrNull()?.content?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim() ?: "",
+                        isMine = role.id == myRoleId
+                    )
+                }
             }
+            LaunchedEffect(taziehId) { reloadRoles() }
 
-            GenericListScreen(
-                screenTitle = when {
-                    compareMode -> "دو نقش را انتخاب کنید"
-                    selectMyRoleMode -> "نقش خودتان را انتخاب کنید"
-                    else -> taziehTitle
+            ProfessionalRoleScreen(
+                taziehTitle = taziehTitle,
+                items = roleItems,
+                onOpen = { item -> navController.navigate("sections/${item.id}/${item.title}") },
+                onSetMine = { item ->
+                    Prefs.setMyRole(context, taziehId, item.id)
+                    myRoleId = item.id
+                    scope.launch { reloadRoles() }
                 },
-                items = items,
-                onItemClick = { navController.navigate("sections/${it.id}/${it.title}") },
-                onBack = {
-                    when {
-                        compareMode -> { compareMode = false; selectedIds = emptySet() }
-                        selectMyRoleMode -> selectMyRoleMode = false
-                        else -> navController.popBackStack()
-                    }
+                onCompare = { item ->
+                    val other = roleItems.firstOrNull { it.id != item.id }
+                    if (other != null) navController.navigate("compare/${item.id}/${other.id}")
                 },
-                selectedIds = when {
-                    compareMode -> selectedIds
-                    myRoleId != null -> setOf(myRoleId!!)
-                    else -> emptySet()
-                },
-                onToggleSelect = when {
-                    compareMode -> { item: ListItemData ->
-                        selectedIds = if (item.id in selectedIds) {
-                            selectedIds - item.id
-                        } else if (selectedIds.size < 2) {
-                            selectedIds + item.id
-                        } else {
-                            selectedIds
-                        }
-                        if (selectedIds.size == 2) {
-                            val (a, b) = selectedIds.toList()
-                            compareMode = false
-                            navController.navigate("compare/$a/$b")
-                        }
-                    }
-                    selectMyRoleMode -> { item: ListItemData ->
-                        Prefs.setMyRole(context, taziehId, item.id)
-                        myRoleId = item.id
-                        selectMyRoleMode = false
-                        scope.launch { snackbarHostState.showSnackbar("«${item.title}» به‌عنوان نقش شما ثبت شد") }
-                    }
-                    else -> null
-                },
-                topBarAction = {
-                    var menuExpanded by remember { mutableStateOf(false) }
-                    androidx.compose.foundation.layout.Row {
-                        androidx.compose.material3.TextButton(onClick = {
-                            selectMyRoleMode = !selectMyRoleMode
-                            compareMode = false
-                            selectedIds = emptySet()
-                        }) {
-                            androidx.compose.material3.Text(if (selectMyRoleMode) "لغو" else "نقش من")
-                        }
-                        androidx.compose.material3.TextButton(onClick = {
-                            compareMode = !compareMode
-                            selectMyRoleMode = false
-                            selectedIds = emptySet()
-                        }) {
-                            androidx.compose.material3.Text(if (compareMode) "لغو" else "مقایسه")
-                        }
-                        androidx.compose.material3.IconButton(onClick = { menuExpanded = true }) {
-                            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.MoreVert, contentDescription = "بیشتر")
-                        }
-                        androidx.compose.material3.DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { androidx.compose.material3.Text("فهرست") },
-                                onClick = {
-                                    menuExpanded = false
-                                    navController.navigate("tazieh_index/$taziehId/$taziehTitle")
-                                }
-                            )
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { androidx.compose.material3.Text("گفتگوها") },
-                                onClick = {
-                                    menuExpanded = false
-                                    navController.navigate("dialogues/$taziehId/$taziehTitle")
-                                }
-                            )
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { androidx.compose.material3.Text("تصاویر") },
-                                onClick = {
-                                    menuExpanded = false
-                                    navController.navigate("tazieh_gallery/$taziehId/$taziehTitle")
-                                }
-                            )
-                        }
-                    }
-                },
-                snackbarHostState = snackbarHostState
+                onBack = { navController.popBackStack() }
             )
         }
 

@@ -86,8 +86,8 @@ fun NotesScreen(
     if (showAddDialog) {
         NoteEditorDialog(
             title = "یادداشت جدید",
-            initialTitle = title,
-            initialContent = content,
+            initialTitle = "",
+            initialContent = "",
             confirmText = "ذخیره",
             onDismiss = { showAddDialog = false },
             onConfirm = { newTitle, newContent ->
