@@ -1,5 +1,11 @@
 package com.example.bookapp.ui.screens
 
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TextRange
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +21,12 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -238,7 +250,118 @@ private suspend fun moveSectionDown(item: SectionEntity, list: List<SectionEntit
 @Composable private fun FieldDialog(value:FieldEntity?, onDismiss:()->Unit, onSave:(String)->Unit){ SimpleTextDialog(if(value==null)"افزودن زمینه" else "ویرایش زمینه", value?.title.orEmpty(), "نام زمینه", onDismiss,onSave) }
 @Composable private fun TaziehDialog(value:TaziehEntity?, fields:List<FieldEntity>, parent:Long, onDismiss:()->Unit, onSave:(String,String)->Unit){ var title by remember{mutableStateOf(value?.title.orEmpty())}; var author by remember{mutableStateOf(value?.author.orEmpty())}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن تعزیه" else "ویرایش تعزیه")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){ OutlinedTextField(title,{title=it},label={Text("نام تعزیه")},singleLine=true); OutlinedTextField(author,{author=it},label={Text("نویسنده")},singleLine=true); Text("زمینه: ${fields.firstOrNull{it.id==parent}?.title.orEmpty()}") }},confirmButton={Button(enabled=title.isNotBlank(),onClick={onSave(title.trim(),author.trim())}){Icon(Icons.Filled.Save,null); Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}) }
 @Composable private fun RoleDialog(value:RoleEntity?, parent:Long, onDismiss:()->Unit, onSave:(String,Int)->Unit){ var title by remember{mutableStateOf(value?.title.orEmpty())}; var order by remember{mutableIntStateOf(value?.orderIndex ?: 0)}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن نقش" else "ویرایش نقش")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(title,{title=it},label={Text("نام نقش")},singleLine=true);OutlinedTextField(order.toString(),{it.toIntOrNull()?.let{n->order=n}},label={Text("شماره ترتیب")},singleLine=true)}},confirmButton={Button(enabled=title.isNotBlank(),onClick={onSave(title.trim(),order)}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}) }
-@Composable private fun SectionDialog(value:SectionEntity?, parent:Long, onDismiss:()->Unit, onSave:(String,String,String,Int)->Unit){ var title by remember{mutableStateOf(value?.title.orEmpty())}; var content by remember{mutableStateOf(value?.content.orEmpty())}; var audio by remember{mutableStateOf(value?.audioUrl.orEmpty())}; var order by remember{mutableIntStateOf(value?.orderIndex ?: 0)}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن بخش" else "ویرایش بخش")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(title,{title=it},label={Text("عنوان بخش")},singleLine=true);OutlinedTextField(content,{content=it},label={Text("متن")},minLines=5);OutlinedTextField(audio,{audio=it},label={Text("آدرس صوت (اختیاری)")},singleLine=true);OutlinedTextField(order.toString(),{it.toIntOrNull()?.let{n->order=n}},label={Text("شماره ترتیب")},singleLine=true)}},confirmButton={Button(enabled=content.isNotBlank(),onClick={onSave(title.trim(),content,audio.trim(),order)}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}) }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun SectionDialog(
+    value: SectionEntity?,
+    parent: Long,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, Int) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var title by remember { mutableStateOf(value?.title.orEmpty()) }
+    var editor by remember { mutableStateOf(TextFieldValue(value?.content.orEmpty())) }
+    var audio by remember { mutableStateOf(value?.audioUrl.orEmpty()) }
+    var order by remember { mutableIntStateOf(value?.orderIndex ?: 0) }
+    var search by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var isPlaying by remember { mutableStateOf(false) }
+    val player = remember { AudioPlayerHelper(context) { state -> isPlaying = state == "started" } }
+    DisposableEffect(Unit) { onDispose { player.stop() } }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            val path = copyAudioToAppStorage(context, uri)
+            if (path != null) { audio = path; status = "فایل صوتی داخل حافظه امن برنامه ذخیره شد." }
+            else status = "ذخیره فایل صوتی ناموفق بود."
+        }
+    }
+
+    fun replaceText(transform: (String) -> String) {
+        val text = editor.text
+        editor = TextFieldValue(transform(text), TextRange(transform(text).length))
+    }
+    fun numberedLines(text: String): String {
+        var n = 1
+        return text.lines().joinToString("\n") { line ->
+            val clean = line.replace(Regex("^\\s*\\d+[.)]\\s*"), "").trimEnd()
+            if (clean.isBlank()) "" else "${n++}. $clean"
+        }
+    }
+    fun cleanNumbering(text: String) = text.lines().joinToString("\n") { it.replace(Regex("^\\s*\\d+[.)]\\s*"), "") }
+    val matchCount = if (search.isBlank()) 0 else Regex(Regex.escape(search.trim()), RegexOption.IGNORE_CASE).findAll(editor.text).count()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (value == null) "افزودن بخش حرفه‌ای" else "ویرایش حرفه‌ای بخش") },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 620.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("عنوان بخش") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { replaceText { "بیت:\n$it" } }, modifier = Modifier.weight(1f)) { Text("افزودن بیت") }
+                    OutlinedButton(onClick = { replaceText(::numberedLines) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.FormatListNumbered, null); Spacer(Modifier.width(4.dp)); Text("شماره‌گذاری")
+                    }
+                    OutlinedButton(onClick = { replaceText(::cleanNumbering) }, modifier = Modifier.weight(1f)) { Text("حذف شماره") }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { replaceText { it.replace("  ", " ").replace("\n\n\n", "\n\n").trim() } }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.FormatBold, null); Spacer(Modifier.width(4.dp)); Text("پاکسازی متن")
+                    }
+                    OutlinedButton(onClick = { audioPicker.launch("audio/*") }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Mic, null); Spacer(Modifier.width(4.dp)); Text("انتخاب صوت")
+                    }
+                }
+                OutlinedTextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    label = { Text("جستجو داخل متن") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    trailingIcon = { if (search.isNotBlank()) Text("$matchCount") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Surface(tonalElevation = 2.dp, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("متن تعزیه", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("${editor.text.lines().count { it.isNotBlank() }} سطر", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Surface(tonalElevation = 1.dp, modifier = Modifier.weight(1f).heightIn(min = 190.dp, max = 300.dp)) {
+                        LazyColumn(contentPadding = PaddingValues(8.dp)) {
+                            items(editor.text.lines().size) { index ->
+                                val line = editor.text.lines()[index]
+                                if (line.isNotBlank()) Text("${index + 1}", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = editor,
+                        onValueChange = { editor = it },
+                        label = { Text("متن / بیت‌ها / مصراع‌ها") },
+                        minLines = 9,
+                        modifier = Modifier.weight(5f).heightIn(min = 190.dp, max = 300.dp)
+                    )
+                }
+                Text("قالب پیشنهادی: هر بیت را در دو سطر بنویسید. شماره‌گذاری می‌تواند خودکار انجام شود.", style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(order.toString(), { it.toIntOrNull()?.let { n -> order = n } }, label = { Text("شماره ترتیب") }, singleLine = true, modifier = Modifier.width(130.dp))
+                    if (audio.isNotBlank()) {
+                        IconButton(onClick = { if (isPlaying) player.stop() else player.play(audio) }) {
+                            Icon(if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow, if (isPlaying) "توقف" else "پخش")
+                        }
+                        Text(if (audio.startsWith("/")) "صوت داخلی برنامه" else "صوت آنلاین", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    } else Text("هنوز صوتی انتخاب نشده است.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                }
+                status?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(enabled = editor.text.isNotBlank(), onClick = { onSave(title.trim(), editor.text.trim(), audio.trim(), order) }) { Icon(Icons.Filled.Save, null); Spacer(Modifier.width(6.dp)); Text("ذخیره") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }
+    )
+}
+
 @Composable private fun SimpleTextDialog(title:String, initial:String, label:String,onDismiss:()->Unit,onSave:(String)->Unit){var text by remember{mutableStateOf(initial)};AlertDialog(onDismissRequest=onDismiss,title={Text(title)},text={OutlinedTextField(text,{text=it},label={Text(label)},singleLine=true)},confirmButton={Button(enabled=text.isNotBlank(),onClick={onSave(text.trim())}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})}
 
 @Composable private fun FootnoteDialog(value:FootnoteEntity?, sectionId:Long, onDismiss:()->Unit, onSave:(String,String)->Unit){ var term by remember{mutableStateOf(value?.term.orEmpty())}; var explanation by remember{mutableStateOf(value?.explanation.orEmpty())}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن پانویس" else "ویرایش پانویس")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(term,{term=it},label={Text("عبارت")},singleLine=true);OutlinedTextField(explanation,{explanation=it},label={Text("توضیح")},minLines=4)}},confirmButton={Button(enabled=term.isNotBlank()&&explanation.isNotBlank(),onClick={onSave(term.trim(),explanation.trim())}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})}

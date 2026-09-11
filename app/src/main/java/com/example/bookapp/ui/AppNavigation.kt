@@ -1004,6 +1004,10 @@ fun AppNavigation(
                 fieldTitle = breadcrumb.first,
                 taziehTitle = breadcrumb.second,
                 roleTitle = breadcrumb.third,
+                darkMode = darkMode,
+                onDarkModeChange = onDarkModeChange,
+                fontScale = fontScale,
+                onFontScaleChange = onFontScaleChange,
                 hasPrevSection = siblingIndex > 0,
                 hasNextSection = siblingIndex in 0 until siblingSections.size - 1,
                 onPrevSection = {

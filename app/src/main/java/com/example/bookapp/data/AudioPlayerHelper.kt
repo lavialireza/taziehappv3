@@ -62,4 +62,11 @@ class AudioPlayerHelper(private val context: Context, private val onStatus: (Str
     }
 
     fun isPlaying(): Boolean = try { player?.isPlaying == true } catch (e: Exception) { false }
+
+    /** پیشرفت پخش بین صفر و یک؛ برای همگام‌سازی نمای متن با صوت. */
+    fun progress(): Float = try {
+        val p = player ?: return 0f
+        val duration = p.duration
+        if (duration <= 0) 0f else (p.currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+    } catch (e: Exception) { 0f }
 }
