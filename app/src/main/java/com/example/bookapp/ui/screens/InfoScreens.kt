@@ -188,14 +188,27 @@ fun SettingsScreen(
 
             Text("سایز متن", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
+            Text(
+                "${(fontScale * 100).toInt()}٪",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Slider(
+                value = fontScale.coerceIn(0.8f, 2.0f),
+                onValueChange = onFontScaleChange,
+                valueRange = 0.8f..2.0f,
+                steps = 11,
+                modifier = Modifier.fillMaxWidth()
+            )
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                FontSizeOption("کوچک", 0.85f, fontScale, onFontScaleChange)
-                FontSizeOption("متوسط", 1.0f, fontScale, onFontScaleChange)
-                FontSizeOption("بزرگ", 1.3f, fontScale, onFontScaleChange)
-                FontSizeOption("خیلی بزرگ", 1.6f, fontScale, onFontScaleChange)
+                Text("کوچک", style = MaterialTheme.typography.bodySmall)
+                Text("متوسط", style = MaterialTheme.typography.bodySmall)
+                Text("بزرگ", style = MaterialTheme.typography.bodySmall)
+                Text("خیلی بزرگ", style = MaterialTheme.typography.bodySmall)
             }
 
             Spacer(Modifier.height(24.dp))
