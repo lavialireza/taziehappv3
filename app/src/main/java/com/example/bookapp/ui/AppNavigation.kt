@@ -1,5 +1,6 @@
 package com.example.bookapp.ui
 
+import android.content.Intent
 import com.example.bookapp.BuildConfig
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -44,6 +45,7 @@ import com.example.bookapp.data.AppDatabase
 import com.example.bookapp.data.ContentImportPreview
 import com.example.bookapp.data.ContentHealthReport
 import com.example.bookapp.data.buildDetailedContentHealthReport
+import com.example.bookapp.data.toPersianText
 import com.example.bookapp.data.exportContentJson
 import com.example.bookapp.data.importContentJson
 import com.example.bookapp.data.previewContentImport
@@ -590,6 +592,15 @@ fun AppNavigation(
                 onExportJson = { exportLauncher.launch("tazieh-content-compatible.json") },
                 onImportWord = { wordImportLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream")) },
                 onDetailedHealthCheck = { scope.launch { busy = true; try { healthReport = buildDetailedContentHealthReport(db) } finally { busy = false } } },
+                onExportHealthReport = {
+                    val report = healthReport ?: buildDetailedContentHealthReport(db)
+                    val text = report.toPersianText()
+                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        putExtra(Intent.EXTRA_SUBJECT, "گزارش سلامت محتوا")
+                    }, "اشتراک‌گذاری گزارش"))
+                },
                 onBack = { navController.popBackStack() }
             )
 
