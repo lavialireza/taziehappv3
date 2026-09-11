@@ -44,7 +44,7 @@ fun DialoguesScreen(
             }
         } else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(dialogues, key = { it.id }) { dialogue ->
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), onClick = { onOpenDialogue(dialogue) }) {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), onClick = { onOpenDialogue(dialogue) }) {
                     Row(Modifier.padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Icon(Icons.Filled.Forum, null); Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
