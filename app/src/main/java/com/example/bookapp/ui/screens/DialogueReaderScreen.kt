@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Share
@@ -37,6 +38,7 @@ fun DialogueReaderScreen(
     turns: List<DialogueTurnDisplay>,
     onMoveTurn: (index: Int, direction: Int) -> Unit,
     onDeleteTurn: (DialogueTurnDisplay) -> Unit,
+    onAddTurn: () -> Unit = {},
     onExportPdf: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -50,6 +52,9 @@ fun DialogueReaderScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onAddTurn) {
+                        Icon(Icons.Filled.Add, contentDescription = "افزودن نوبت")
+                    }
                     IconButton(onClick = onExportPdf) {
                         Icon(Icons.Filled.Share, contentDescription = "خروجی PDF گفتگو")
                     }

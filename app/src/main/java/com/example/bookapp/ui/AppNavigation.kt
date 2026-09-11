@@ -6,12 +6,21 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -678,6 +687,9 @@ fun AppNavigation(
                 taziehTitle = taziehTitle,
                 dialogues = dialogues,
                 onOpenDialogue = { d -> navController.navigate("dialogue_reader/${d.id}") },
+                onEditDialogue = { d, title ->
+                    scope.launch { db.dialogueDao().updateTitle(d.id, title); reloadDialogues() }
+                },
                 onDeleteDialogue = { d ->
                     scope.launch {
                         db.dialogueDao().delete(d.id)
@@ -725,6 +737,8 @@ fun AppNavigation(
             val dialogueId = backStackEntry.arguments?.getString("dialogueId")?.toLongOrNull() ?: 0L
             var dialogueTitle by remember { mutableStateOf("") }
             var turns by remember { mutableStateOf(listOf<DialogueTurnDisplay>()) }
+            var allSections by remember { mutableStateOf(listOf<SectionPickerItem>()) }
+            var showAddTurn by remember { mutableStateOf(false) }
             val scope = androidx.compose.runtime.rememberCoroutineScope()
 
             suspend fun reloadTurns() {
@@ -743,7 +757,12 @@ fun AppNavigation(
                     )
                 }
             }
-            LaunchedEffect(dialogueId) { reloadTurns() }
+            LaunchedEffect(dialogueId) {
+                reloadTurns()
+                val dialogue = db.dialogueDao().getById(dialogueId)
+                val roles = db.roleDao().getByTazieh(dialogue.taziehId)
+                allSections = roles.flatMap { role -> db.sectionDao().getByRole(role.id).map { section -> SectionPickerItem(section.id, role.title, section.title) } }
+            }
 
             DialogueReaderScreen(
                 dialogueTitle = dialogueTitle,
@@ -767,6 +786,7 @@ fun AppNavigation(
                         reloadTurns()
                     }
                 },
+                onAddTurn = { showAddTurn = true },
                 onExportPdf = {
                     scope.launch {
                         val triples = turns.map { Triple(it.roleTitle, it.sectionTitle, it.content) }
@@ -775,6 +795,35 @@ fun AppNavigation(
                 },
                 onBack = { navController.popBackStack() }
             )
+            if (showAddTurn) {
+                var chosen by remember { mutableStateOf<SectionPickerItem?>(null) }
+                AlertDialog(
+                    onDismissRequest = { showAddTurn = false },
+                    title = { Text("افزودن نوبت به گفتگو") },
+                    text = {
+                        androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                            items(allSections, key = { it.sectionId }) { item ->
+                                ListItem(
+                                    headlineContent = { Text(item.sectionTitle) },
+                                    supportingContent = { Text(item.roleTitle) },
+                                    modifier = Modifier.fillMaxWidth().clickable { chosen = item }
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(enabled = chosen != null, onClick = {
+                            val sectionId = chosen?.sectionId
+                            if (sectionId != null) scope.launch {
+                                val current = db.dialogueTurnDao().getByDialogue(dialogueId)
+                                db.dialogueTurnDao().insert(com.example.bookapp.data.DialogueTurnEntity(dialogueId = dialogueId, sectionId = sectionId, orderIndex = current.size))
+                                reloadTurns(); showAddTurn = false
+                            }
+                        }) { Text("افزودن") }
+                    },
+                    dismissButton = { TextButton(onClick = { showAddTurn = false }) { Text("انصراف") } }
+                )
+            }
         }
 
         composable(ROUTE_TAZIEH_GALLERY) { backStackEntry ->
