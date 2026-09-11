@@ -12,6 +12,9 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -32,6 +35,7 @@ fun ContentEditorScreen(
     var roles by remember { mutableStateOf(emptyList<RoleEntity>()) }
     var sections by remember { mutableStateOf(emptyList<SectionEntity>()) }
     var footnotes by remember { mutableStateOf(emptyList<FootnoteEntity>()) }
+    var images by remember { mutableStateOf(emptyList<TaziehImageEntity>()) }
     var selectedFieldId by remember { mutableLongStateOf(-1L) }
     var selectedTaziehId by remember { mutableLongStateOf(-1L) }
     var selectedRoleId by remember { mutableLongStateOf(-1L) }
@@ -46,6 +50,7 @@ fun ContentEditorScreen(
         taziehs = if (selectedFieldId > 0) db.taziehDao().getByField(selectedFieldId) else emptyList()
         roles = if (selectedTaziehId > 0) db.roleDao().getByTazieh(selectedTaziehId) else emptyList()
         sections = if (selectedRoleId > 0) db.sectionDao().getByRole(selectedRoleId) else emptyList()
+        images = if (selectedTaziehId > 0) db.taziehImageDao().getByTazieh(selectedTaziehId) else emptyList()
     }
 
     LaunchedEffect(Unit) { reload() }
@@ -106,6 +111,16 @@ fun ContentEditorScreen(
                         onEdit = { dialog = EditorDialog.Tazieh(t, t.fieldId) },
                         onDelete = { deleteTarget = DeleteTarget.Tazieh(t) })
                 }
+                item {
+                    LevelHeader("تصاویر تعزیه انتخاب‌شده", Icons.Filled.Image, "افزودن تصویر") {
+                        if (selectedTaziehId > 0) dialog = EditorDialog.Image(null, selectedTaziehId)
+                    }
+                }
+                items(images, key = { "img${it.id}" }) { image ->
+                    EntityRow(image.caption.ifBlank { "تصویر ${image.id}" }, image.filePath, onClick = {},
+                        onEdit = { dialog = EditorDialog.Image(image, image.taziehId) },
+                        onDelete = { deleteTarget = DeleteTarget.Image(image) })
+                }
             }
             if (selectedTaziehId > 0) {
                 item {
@@ -115,10 +130,13 @@ fun ContentEditorScreen(
                     }
                 }
                 items(roles, key = { "r${it.id}" }) { r ->
-                    EntityRow(r.title, "ترتیب ${r.orderIndex + 1}",
+                    EntityRowWithMove(r.title, "ترتیب ${r.orderIndex + 1}",
+                        canUp = roles.indexOf(r) > 0, canDown = roles.indexOf(r) < roles.lastIndex,
                         onClick = { selectedRoleId = r.id },
                         onEdit = { dialog = EditorDialog.Role(r, r.taziehId) },
-                        onDelete = { deleteTarget = DeleteTarget.Role(r) })
+                        onDelete = { deleteTarget = DeleteTarget.Role(r) },
+                        onUp = { scope.launch { moveRole(r, roles, db); reload() } },
+                        onDown = { scope.launch { moveRoleDown(r, roles, db); reload() } })
                 }
             }
             if (selectedRoleId > 0) {
@@ -129,10 +147,13 @@ fun ContentEditorScreen(
                     }
                 }
                 items(sections, key = { "s${it.id}" }) { s ->
-                    EntityRow(s.title.ifBlank { "بخش ${s.orderIndex + 1}" }, "ترتیب ${s.orderIndex + 1}",
+                    EntityRowWithMove(s.title.ifBlank { "بخش ${s.orderIndex + 1}" }, "ترتیب ${s.orderIndex + 1}",
+                        canUp = sections.indexOf(s) > 0, canDown = sections.indexOf(s) < sections.lastIndex,
                         onClick = { selectedSectionId = s.id; scope.launch { footnotes = db.footnoteDao().getBySection(s.id) } },
                         onEdit = { dialog = EditorDialog.Section(s, s.roleId) },
-                        onDelete = { deleteTarget = DeleteTarget.Section(s) })
+                        onDelete = { deleteTarget = DeleteTarget.Section(s) },
+                        onUp = { scope.launch { moveSection(s, sections, db); reload() } },
+                        onDown = { scope.launch { moveSectionDown(s, sections, db); reload() } })
                 }
                 item {
                     LevelHeader("۵. پانویس‌های بخش انتخاب‌شده", Icons.Filled.MenuBook, "افزودن پانویس") {
@@ -155,6 +176,9 @@ fun ContentEditorScreen(
             is EditorDialog.Tazieh -> TaziehDialog(d.value, fields, d.parentFieldId, { dialog = null }) { title, author ->
                 scope.launch { busy = true; try { if (d.value == null) db.taziehDao().insert(TaziehEntity(fieldId = d.parentFieldId, title = title, author = author.ifBlank { null })) else { db.taziehDao().updateIdentity(d.value.id, d.parentFieldId, title, d.value.uid); db.taziehDao().updateAuthor(d.value.id, author.ifBlank { null }, d.value.authorEmail) }; reload(); message = "تعزیه ذخیره شد." } finally { busy = false; dialog = null } }
             }
+            is EditorDialog.Image -> ImageDialog(d.value, { dialog = null }) { path, caption ->
+                scope.launch { busy = true; try { if (d.value == null) db.taziehImageDao().insert(TaziehImageEntity(taziehId = d.taziehId, filePath = path, caption = caption)) else db.taziehImageDao().updateCaption(d.value.id, caption); reload(); message = "تصویر ذخیره شد." } finally { busy = false; dialog = null } }
+            }
             is EditorDialog.Role -> RoleDialog(d.value, d.parentTaziehId, { dialog = null }) { title, order ->
                 scope.launch { busy = true; try { if (d.value == null) db.roleDao().insert(RoleEntity(taziehId = d.parentTaziehId, title = title, orderIndex = order)) else db.roleDao().updateFromContent(d.value.id, d.parentTaziehId, title, order, d.value.uid); reload(); message = "نقش ذخیره شد." } finally { busy = false; dialog = null } }
             }
@@ -173,7 +197,7 @@ fun ContentEditorScreen(
             title = { Text("حذف محتوا") },
             text = { Text("آیا از حذف «${target.title}» مطمئن هستید؟ موارد وابسته نیز ممکن است حذف شوند.") },
             confirmButton = { Button(onClick = {
-                scope.launch { busy = true; try { when (target) { is DeleteTarget.Field -> db.fieldDao().delete(target.value.id); is DeleteTarget.Tazieh -> db.taziehDao().delete(target.value.id); is DeleteTarget.Role -> db.roleDao().delete(target.value.id); is DeleteTarget.Section -> db.sectionDao().delete(target.value.id); is DeleteTarget.Footnote -> db.footnoteDao().delete(target.value.id) }; selectedFieldId = if (target is DeleteTarget.Field) -1L else selectedFieldId; selectedTaziehId = -1; selectedRoleId = -1; selectedSectionId = -1; footnotes = emptyList(); reload(); message = "مورد حذف شد." } finally { busy = false; deleteTarget = null } }
+                scope.launch { busy = true; try { when (target) { is DeleteTarget.Field -> db.fieldDao().delete(target.value.id); is DeleteTarget.Tazieh -> db.taziehDao().delete(target.value.id); is DeleteTarget.Role -> db.roleDao().delete(target.value.id); is DeleteTarget.Section -> db.sectionDao().delete(target.value.id); is DeleteTarget.Footnote -> db.footnoteDao().delete(target.value.id); is DeleteTarget.Image -> db.taziehImageDao().delete(target.value.id) }; selectedFieldId = if (target is DeleteTarget.Field) -1L else selectedFieldId; selectedTaziehId = -1; selectedRoleId = -1; selectedSectionId = -1; footnotes = emptyList(); reload(); message = "مورد حذف شد." } finally { busy = false; deleteTarget = null } }
             }) { Text("حذف") } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("انصراف") } }
         )
@@ -187,8 +211,26 @@ private sealed interface EditorDialog {
     data class Role(val value: RoleEntity?, val parentTaziehId: Long) : EditorDialog
     data class Section(val value: SectionEntity?, val parentRoleId: Long) : EditorDialog
     data class Footnote(val value: FootnoteEntity?, val sectionId: Long) : EditorDialog
+    data class Image(val value: TaziehImageEntity?, val taziehId: Long) : EditorDialog
 }
-private sealed interface DeleteTarget { val title: String; data class Field(val value: FieldEntity): DeleteTarget { override val title get()=value.title }; data class Tazieh(val value:TaziehEntity):DeleteTarget { override val title get()=value.title }; data class Role(val value:RoleEntity):DeleteTarget { override val title get()=value.title }; data class Section(val value:SectionEntity):DeleteTarget { override val title get()=value.title }; data class Footnote(val value:FootnoteEntity):DeleteTarget { override val title get()=value.term } }
+private sealed interface DeleteTarget { val title: String; data class Field(val value: FieldEntity): DeleteTarget { override val title get()=value.title }; data class Tazieh(val value:TaziehEntity):DeleteTarget { override val title get()=value.title }; data class Role(val value:RoleEntity):DeleteTarget { override val title get()=value.title }; data class Section(val value:SectionEntity):DeleteTarget { override val title get()=value.title }; data class Footnote(val value:FootnoteEntity):DeleteTarget { override val title get()=value.term }; data class Image(val value:TaziehImageEntity):DeleteTarget { override val title get()=value.caption.ifBlank { value.filePath } } }
+
+private suspend fun moveRole(item: RoleEntity, list: List<RoleEntity>, db: AppDatabase) {
+    val i=list.indexOfFirst { it.id==item.id }; if(i>0){ val other=list[i-1]; db.roleDao().setOrder(item.id, other.orderIndex); db.roleDao().setOrder(other.id,item.orderIndex) }
+}
+private suspend fun moveRoleDown(item: RoleEntity, list: List<RoleEntity>, db: AppDatabase) {
+    val i=list.indexOfFirst { it.id==item.id }; if(i>=0 && i<list.lastIndex){ val other=list[i+1]; db.roleDao().setOrder(item.id, other.orderIndex); db.roleDao().setOrder(other.id,item.orderIndex) }
+}
+private suspend fun moveSection(item: SectionEntity, list: List<SectionEntity>, db: AppDatabase) {
+    val i=list.indexOfFirst { it.id==item.id }; if(i>0){ val other=list[i-1]; db.sectionDao().setOrder(item.id, other.orderIndex); db.sectionDao().setOrder(other.id,item.orderIndex) }
+}
+private suspend fun moveSectionDown(item: SectionEntity, list: List<SectionEntity>, db: AppDatabase) {
+    val i=list.indexOfFirst { it.id==item.id }; if(i>=0 && i<list.lastIndex){ val other=list[i+1]; db.sectionDao().setOrder(item.id, other.orderIndex); db.sectionDao().setOrder(other.id,item.orderIndex) }
+}
+
+@Composable private fun EntityRowWithMove(title:String, subtitle:String?, canUp:Boolean, canDown:Boolean, onClick:()->Unit, onEdit:()->Unit, onDelete:()->Unit, onUp:()->Unit, onDown:()->Unit) {
+    OutlinedCard(onClick=onClick, modifier=Modifier.fillMaxWidth()){ Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement=Arrangement.spacedBy(2.dp)){ Column(Modifier.weight(1f).padding(4.dp)){Text(title,fontWeight=FontWeight.SemiBold); subtitle?.let{Text(it,style=MaterialTheme.typography.bodySmall)}}; Column{IconButton(enabled=canUp,onClick=onUp){Icon(Icons.Filled.KeyboardArrowUp,"بالا")};IconButton(enabled=canDown,onClick=onDown){Icon(Icons.Filled.KeyboardArrowDown,"پایین")}};IconButton(onClick=onEdit){Icon(Icons.Filled.Edit,"ویرایش")};IconButton(onClick=onDelete){Icon(Icons.Filled.Delete,"حذف")}}}
+}
 
 @Composable private fun LevelHeader(title:String, icon: androidx.compose.ui.graphics.vector.ImageVector, action:String, onAdd:()->Unit) { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) { Row(Modifier.weight(1f)) { Icon(icon, null); Spacer(Modifier.width(8.dp)); Text(title, fontWeight=FontWeight.Bold) }; TextButton(onClick=onAdd){ Icon(Icons.Filled.Add,null); Spacer(Modifier.width(4.dp)); Text(action) } } }
 @Composable private fun EntityRow(title:String, subtitle:String?, onClick:()->Unit, onEdit:()->Unit, onDelete:()->Unit) { OutlinedCard(onClick=onClick, modifier=Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement=Arrangement.spacedBy(6.dp)) { Column(Modifier.weight(1f)) { Text(title, fontWeight=FontWeight.SemiBold); subtitle?.let { Text(it, style=MaterialTheme.typography.bodySmall) } }; IconButton(onClick=onEdit){ Icon(Icons.Filled.Edit,"ویرایش") }; IconButton(onClick=onDelete){ Icon(Icons.Filled.Delete,"حذف") } } } }
@@ -200,3 +242,5 @@ private sealed interface DeleteTarget { val title: String; data class Field(val 
 @Composable private fun SimpleTextDialog(title:String, initial:String, label:String,onDismiss:()->Unit,onSave:(String)->Unit){var text by remember{mutableStateOf(initial)};AlertDialog(onDismissRequest=onDismiss,title={Text(title)},text={OutlinedTextField(text,{text=it},label={Text(label)},singleLine=true)},confirmButton={Button(enabled=text.isNotBlank(),onClick={onSave(text.trim())}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})}
 
 @Composable private fun FootnoteDialog(value:FootnoteEntity?, sectionId:Long, onDismiss:()->Unit, onSave:(String,String)->Unit){ var term by remember{mutableStateOf(value?.term.orEmpty())}; var explanation by remember{mutableStateOf(value?.explanation.orEmpty())}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن پانویس" else "ویرایش پانویس")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(term,{term=it},label={Text("عبارت")},singleLine=true);OutlinedTextField(explanation,{explanation=it},label={Text("توضیح")},minLines=4)}},confirmButton={Button(enabled=term.isNotBlank()&&explanation.isNotBlank(),onClick={onSave(term.trim(),explanation.trim())}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})}
+
+@Composable private fun ImageDialog(value:TaziehImageEntity?, onDismiss:()->Unit, onSave:(String,String)->Unit){ var path by remember{mutableStateOf(value?.filePath.orEmpty())}; var caption by remember{mutableStateOf(value?.caption.orEmpty())}; AlertDialog(onDismissRequest=onDismiss,title={Text(if(value==null)"افزودن تصویر" else "ویرایش تصویر")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(path,{path=it},label={Text("مسیر یا URI تصویر")},singleLine=true,enabled=value==null);OutlinedTextField(caption,{caption=it},label={Text("عنوان تصویر")},singleLine=true);Text("برای حفظ سازگاری، مسیر/URI فایل ذخیره می‌شود.",style=MaterialTheme.typography.bodySmall)}},confirmButton={Button(enabled=path.isNotBlank(),onClick={onSave(path.trim(),caption.trim())}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})}

@@ -97,6 +97,9 @@ interface RoleDao {
     @Query("DELETE FROM roles WHERE id = :roleId")
     suspend fun delete(roleId: Long)
 
+    @Query("UPDATE roles SET orderIndex = :orderIndex WHERE id = :roleId")
+    suspend fun setOrder(roleId: Long, orderIndex: Int)
+
     @Query("DELETE FROM roles")
     suspend fun deleteAll()
 }
@@ -132,6 +135,9 @@ interface SectionDao {
 
     @Query("DELETE FROM sections WHERE id = :sectionId")
     suspend fun delete(sectionId: Long)
+
+    @Query("UPDATE sections SET orderIndex = :orderIndex WHERE id = :sectionId")
+    suspend fun setOrder(sectionId: Long, orderIndex: Int)
 
     @Insert
     suspend fun insert(section: SectionEntity): Long
