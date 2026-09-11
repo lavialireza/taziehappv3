@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.example.bookapp.data.AudioPlayerHelper
 import com.example.bookapp.ui.theme.FontChoiceLabels
@@ -330,15 +331,20 @@ fun TextScreen(
                 AssistChip(onClick = { showTagDialog = true }, label = { Text(tag!!) })
                 Spacer(Modifier.height(8.dp))
             }
-            // اندازه و فونت اصلی از MaterialTheme گرفته می‌شود تا همان تنظیمات
-            // سراسری در تمام بخش‌های متنی برنامه نیز اعمال شود. lineSpacing فقط
-            // فاصله خطوط مخصوص صفحه مطالعه را کنترل می‌کند.
-            val baseTextStyle = MaterialTheme.typography.bodyLarge
-            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing
+            // تنظیمات محلی صفحه مطالعه مستقیماً از همین state خوانده می‌شوند تا
+            // تغییر اندازه و فونت داخل همین پنجره، بدون بستن پنجره، فوراً روی متن دیده شود.
+            // سایر بخش‌های برنامه همچنان از MaterialTheme سراسری استفاده می‌کنند.
+            val readerFontFamily = FontChoices[readerFontChoice] ?: FontChoices["titr"]!!
+            val readerBaseFontSize = 18f * readerFontScale.coerceIn(0.8f, 2.0f)
+            val readerLineHeight = readerBaseFontSize * lineSpacing
             Text(
                 content,
                 color = if (readerDarkMode) Color(0xFFEFE0C0) else MaterialTheme.colorScheme.onSurface,
-                style = baseTextStyle.copy(lineHeight = scaledLineHeight)
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = readerFontFamily,
+                    fontSize = readerBaseFontSize.sp,
+                    lineHeight = readerLineHeight.sp
+                )
             )
 
             if (hasPrevSection || hasNextSection) {
@@ -429,6 +435,29 @@ fun TextScreen(
                                 onDarkModeChange(enabled)
                             }
                         )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("فاصله خطوط متن")
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "فشرده" to 1.1f,
+                            "معمولی" to 1.4f,
+                            "بازتر" to 1.8f
+                        ).forEach { (label, value) ->
+                            FilterChip(
+                                selected = kotlin.math.abs(lineSpacing - value) < 0.01f,
+                                onClick = {
+                                    lineSpacing = value
+                                    Prefs.setLineSpacing(context, value)
+                                },
+                                label = { Text(label) }
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(16.dp))
