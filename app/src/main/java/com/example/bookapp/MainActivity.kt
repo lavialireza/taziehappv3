@@ -9,14 +9,12 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import com.example.bookapp.data.Prefs
 import com.example.bookapp.data.AppDatabase
 import com.example.bookapp.data.migratePrefsUserDataToRoom
@@ -89,16 +87,9 @@ class MainActivity : ComponentActivity() {
 
             val colorScheme = colorSchemeFor(themeChoice, darkMode)
             val typography = typographyFor(fontChoice)
-            val baseDensity = LocalDensity.current
-            val scaledDensity = androidx.compose.ui.unit.Density(
-                density = baseDensity.density,
-                fontScale = baseDensity.fontScale * fontScale
-            )
-
             MaterialTheme(colorScheme = colorScheme, typography = typography) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    CompositionLocalProvider(LocalDensity provides scaledDensity) {
-                        AppNavigation(
+                    AppNavigation(
                             darkMode = darkMode,
                             onDarkModeChange = {
                                 darkMode = it
@@ -133,7 +124,6 @@ class MainActivity : ComponentActivity() {
                             shortcutTarget = shortcutTarget,
                             deepLinkSectionId = deepLinkSectionId
                         )
-                    }
                 }
             }
         }

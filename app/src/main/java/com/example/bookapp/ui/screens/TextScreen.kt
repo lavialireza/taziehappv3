@@ -140,11 +140,17 @@ fun TextScreen(
         }
     }
 
+    // حرکت خودکار فقط برای فایل صوتی واقعی انجام می‌شود؛ چون برای TTS درصد
+    // پیشرفت قابل اتکایی در اختیار نداریم. هنگام توقف/پایان صوت، حلقه نیز متوقف می‌شود.
     LaunchedEffect(isSpeaking, audioUrl, autoScroll) {
         if (isSpeaking && autoScroll && !audioUrl.isNullOrBlank()) {
             while (isSpeaking && autoScroll) {
-                scrollState.animateScrollTo((scrollState.maxValue * audioPlayerHelper.progress()).toInt())
-                kotlinx.coroutines.delay(400)
+                val progress = audioPlayerHelper.progress()
+                val target = (scrollState.maxValue * progress).toInt()
+                if (target > 0) {
+                    scrollState.animateScrollTo(target)
+                }
+                kotlinx.coroutines.delay(350)
             }
         }
     }
@@ -296,10 +302,17 @@ fun TextScreen(
                 AssistChip(onClick = { showTagDialog = true }, label = { Text(tag!!) })
                 Spacer(Modifier.height(8.dp))
             }
+            // اندازه فونت متن خواننده را مستقیماً روی Text اعمال می‌کنیم.
+            // این کار باعث می‌شود تغییر Slider بدون وابستگی به LocalDensity فوراً
+            // روی متن اعمال شود و سایر ابعاد رابط کاربری ناخواسته تغییر نکنند.
+            val baseTextStyle = MaterialTheme.typography.bodyLarge
+            val scaledFontSize = baseTextStyle.fontSize * fontScale
+            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * fontScale
             Text(
                 content,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    lineHeight = MaterialTheme.typography.bodyLarge.fontSize * lineSpacing
+                style = baseTextStyle.copy(
+                    fontSize = scaledFontSize,
+                    lineHeight = scaledLineHeight
                 )
             )
 
