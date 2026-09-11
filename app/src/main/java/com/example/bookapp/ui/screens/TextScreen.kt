@@ -320,10 +320,22 @@ fun TextScreen(
             // اندازه فونت متن خواننده را مستقیماً روی Text اعمال می‌کنیم.
             // این کار باعث می‌شود تغییر Slider بدون وابستگی به LocalDensity فوراً
             // روی متن اعمال شود و سایر ابعاد رابط کاربری ناخواسته تغییر نکنند.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    "اندازه متن: ${(readerFontScale * 100).toInt()}٪",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             val baseTextStyle = MaterialTheme.typography.bodyLarge
             val readerFontFamily = FontChoices[readerFontChoice] ?: FontChoices["titr"]
             val scaledFontSize = baseTextStyle.fontSize * readerFontScale
-            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * readerFontScale
+            val scaledLineHeight = scaledFontSize * lineSpacing
             Text(
                 content,
                 color = if (readerDarkMode) Color(0xFFEFE0C0) else MaterialTheme.colorScheme.onSurface,
