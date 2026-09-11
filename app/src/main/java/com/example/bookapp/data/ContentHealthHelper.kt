@@ -103,3 +103,21 @@ suspend fun buildDetailedContentHealthReport(db: AppDatabase): ContentHealthRepo
         invalidAudio = invalidAudio
     )
 }
+
+
+fun ContentHealthReport.toPersianText(): String = buildString {
+    appendLine("گزارش سلامت محتوا")
+    appendLine("====================")
+    appendLine("زمینه‌ها: $fieldsChecked")
+    appendLine("تعزیه‌ها: $taziehsChecked")
+    appendLine("نقش‌ها: $rolesChecked")
+    appendLine("بخش‌ها: $sectionsChecked")
+    appendLine("عنوان‌های خالی: $emptyTitles")
+    appendLine("متن‌های خالی: $emptyTexts")
+    appendLine("عنوان‌های تکراری: $duplicateTitles")
+    appendLine("مشکلات ترتیب: $orderIssues")
+    appendLine("صوت‌های مشکوک: $invalidAudio")
+    appendLine()
+    if (warnings.isEmpty()) appendLine("نتیجه: موردی برای بررسی یافت نشد.")
+    else { appendLine("موارد نیازمند بررسی:"); warnings.forEachIndexed { i, w -> appendLine("${i + 1}. $w") } }
+}

@@ -35,6 +35,7 @@ fun ContentManagementScreen(
     onExportJson: () -> Unit,
     onImportWord: () -> Unit,
     onDetailedHealthCheck: () -> Unit,
+    onExportHealthReport: () -> Unit,
     busy: Boolean,
     message: String?,
     onBack: () -> Unit
@@ -144,6 +145,12 @@ fun ContentManagementScreen(
                             Icon(Icons.Filled.FactCheck, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text("بررسی عمیق سلامت محتوا")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = onExportHealthReport, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Storage, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("ارسال گزارش سلامت محتوا")
                         }
                         Spacer(Modifier.height(10.dp))
                         if (healthWarnings.isEmpty()) {
