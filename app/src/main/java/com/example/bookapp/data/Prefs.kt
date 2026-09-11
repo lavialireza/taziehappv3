@@ -35,6 +35,18 @@ object Prefs {
         prefs.edit().putFloat(KEY_FONT_SCALE, scale).apply()
     }
 
+    private const val KEY_AUTO_SCROLL_READER = "auto_scroll_reader"
+
+    fun isReaderAutoScroll(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTO_SCROLL_READER, false)
+    }
+
+    fun setReaderAutoScroll(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_AUTO_SCROLL_READER, enabled).apply()
+    }
+
     private const val KEY_BOOKMARKS = "bookmarks"
 
     fun getBookmarks(context: Context): Set<Long> {
