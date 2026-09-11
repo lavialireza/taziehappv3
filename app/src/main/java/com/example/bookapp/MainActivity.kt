@@ -25,6 +25,9 @@ import com.example.bookapp.ui.theme.typographyFor
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.PUBLIC_VIEWER) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
 
         // ثبت خودکار کرش‌ها: در صورت کرش برنامه، جزئیات خطا در یک فایل داخل
         // حافظه‌ی اپ ذخیره می‌شود تا بعداً از تنظیمات قابل مشاهده/ارسال باشد

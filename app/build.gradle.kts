@@ -23,6 +23,7 @@ ksp {
 }
 
 android {
+    val isViewerBuild = providers.gradleProperty("viewerApp").orNull == "true"
     namespace = "com.example.bookapp"
     compileSdk = 34
 
@@ -44,14 +45,16 @@ android {
     } else "local"
 
     defaultConfig {
-        applicationId = "com.example.bookapp"
+        applicationId = if (isViewerBuild) "com.example.bookapp.viewer" else "com.example.bookapp"
         minSdk = 23
         targetSdk = 34
         // شماره نسخه/برچسب هر build به‌صورت خودکار از تاریخچه Git ساخته می‌شود
         // (تعداد کامیت‌ها = versionCode، و نام نسخه شامل هش کوتاه کامیت است)
         // تا هر build یک برچسب منحصربه‌فرد داشته باشد و قابل ردیابی باشد.
         versionCode = gitCommitCount
-        versionName = "1.0-build$gitCommitCount+$gitShortSha"
+        buildConfigField("Boolean", "PUBLIC_VIEWER", isViewerBuild.toString())
+        versionName = if (isViewerBuild) "1.0-build$gitCommitCount+$gitShortSha-VIEWER" else "1.0-build$gitCommitCount+$gitShortSha"
+        manifestPlaceholders["appLabel"] = if (isViewerBuild) "تعزیه و شبیه‌خوانی - فقط مشاهده" else "تعزیه و شبیه‌خوانی"
     }
 
     val storeFilePath = signingProp("RELEASE_STORE_FILE")

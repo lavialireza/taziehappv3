@@ -1,5 +1,7 @@
 package com.example.bookapp.ui
 
+import com.example.bookapp.BuildConfig
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 
@@ -109,9 +111,11 @@ fun AppNavigation(
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
+    val publicViewer = BuildConfig.PUBLIC_VIEWER
     val navController: NavHostController = rememberNavController()
 
     LaunchedEffect(Unit) {
+        if (publicViewer) return@LaunchedEffect
         // نوتیفیکیشن فقط برای کاربرانی که قبلاً برنامه را استفاده کرده‌اند نشان داده
         // می‌شود؛ در اولین نصب/اجرا محتوای اولیه «تازه» محسوب نمی‌شود
         val isReturningUser = Prefs.getProcessedContentFiles(context).isNotEmpty()
@@ -457,7 +461,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_CONTENT_MANAGEMENT) {
+        if (!publicViewer) composable(ROUTE_CONTENT_MANAGEMENT) {
             var fieldsCount by remember { mutableIntStateOf(0) }
             var taziehsCount by remember { mutableIntStateOf(0) }
             var rolesCount by remember { mutableIntStateOf(0) }
@@ -722,14 +726,14 @@ fun AppNavigation(
             }
         }
 
-        composable(ROUTE_CONTENT_EDITOR) {
+        if (!publicViewer) composable(ROUTE_CONTENT_EDITOR) {
             ContentEditorScreen(
                 db = db,
                 onBack = { navController.popBackStack() }
             )
         }
 
-        composable(ROUTE_FIELDS) {
+        if (!publicViewer) composable(ROUTE_FIELDS) {
             var fields by remember { mutableStateOf(emptyList<FieldCatalogItem>()) }
             LaunchedEffect(Unit) {
                 val allFields = db.fieldDao().getAll()
@@ -748,7 +752,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_TAZIEHS) { backStackEntry ->
+        if (!publicViewer) composable(ROUTE_TAZIEHS) { backStackEntry ->
             val fieldId = backStackEntry.arguments?.getString("fieldId")?.toLongOrNull() ?: 0L
             var catalog by remember { mutableStateOf(emptyList<TaziehCatalogItem>()) }
             LaunchedEffect(fieldId) {
@@ -768,7 +772,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_ROLES) { backStackEntry ->
+        if (!publicViewer) composable(ROUTE_ROLES) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
             var roles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
@@ -871,7 +875,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_DIALOGUES) { backStackEntry ->
+        if (!publicViewer) composable(ROUTE_DIALOGUES) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
             var dialogues by remember { mutableStateOf(listOf<DialogueSummary>()) }
@@ -902,7 +906,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_DIALOGUE_BUILDER) { backStackEntry ->
+        if (!publicViewer) composable(ROUTE_DIALOGUE_BUILDER) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
             var allSections by remember { mutableStateOf(listOf<SectionPickerItem>()) }
@@ -1091,7 +1095,7 @@ fun AppNavigation(
             )
         }
 
-        composable(ROUTE_SECTIONS) { backStackEntry ->
+        if (!publicViewer) composable(ROUTE_SECTIONS) { backStackEntry ->
             val roleId = backStackEntry.arguments?.getString("roleId")?.toLongOrNull() ?: 0L
             val roleTitle = backStackEntry.arguments?.getString("roleTitle") ?: ""
             var items by remember { mutableStateOf(listOf<ListItemData>()) }
