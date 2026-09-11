@@ -70,17 +70,48 @@ fun ContentEditorScreen(
     LaunchedEffect(selectedFieldId) {
         if (selectedFieldId > 0) {
             taziehs = db.taziehDao().getByField(selectedFieldId)
-            if (taziehs.none { it.id == selectedTaziehId }) selectedTaziehId = -1
-        } else { taziehs = emptyList(); selectedTaziehId = -1 }
+            if (taziehs.none { it.id == selectedTaziehId }) {
+                selectedTaziehId = -1L
+                selectedRoleId = -1L
+                selectedSectionId = -1L
+                roles = emptyList()
+                sections = emptyList()
+                images = emptyList()
+                footnotes = emptyList()
+            }
+        } else {
+            taziehs = emptyList()
+            selectedTaziehId = -1L
+            selectedRoleId = -1L
+            selectedSectionId = -1L
+            roles = emptyList()
+            sections = emptyList()
+            images = emptyList()
+            footnotes = emptyList()
+        }
     }
     LaunchedEffect(selectedTaziehId) {
         if (selectedTaziehId > 0) {
             roles = db.roleDao().getByTazieh(selectedTaziehId)
-            if (roles.none { it.id == selectedRoleId }) selectedRoleId = -1
-        } else { roles = emptyList(); selectedRoleId = -1 }
+            images = db.taziehImageDao().getByTazieh(selectedTaziehId)
+            if (roles.none { it.id == selectedRoleId }) {
+                selectedRoleId = -1L
+                selectedSectionId = -1L
+                sections = emptyList()
+                footnotes = emptyList()
+            }
+        } else {
+            roles = emptyList()
+            sections = emptyList()
+            images = emptyList()
+            footnotes = emptyList()
+            selectedRoleId = -1L
+            selectedSectionId = -1L
+        }
     }
     LaunchedEffect(selectedRoleId) {
         sections = if (selectedRoleId > 0) db.sectionDao().getByRole(selectedRoleId) else emptyList()
+        if (sections.none { it.id == selectedSectionId }) selectedSectionId = -1L
         footnotes = emptyList()
     }
 
@@ -160,7 +191,9 @@ fun ContentEditorScreen(
                     }
                 }
                 items(sections, key = { "s${it.id}" }) { s ->
-                    EntityRowWithMove(s.title.ifBlank { "بخش ${s.orderIndex + 1}" }, "ترتیب ${s.orderIndex + 1}",
+                    EntityRowWithMove(
+                        s.title.ifBlank { "بخش ${s.orderIndex + 1}" },
+                        "ترتیب ${s.orderIndex + 1} • ${s.content.length} نویسه${if (s.audioUrl.isNullOrBlank()) "" else " • صوت دارد"}",
                         canUp = sections.indexOf(s) > 0, canDown = sections.indexOf(s) < sections.lastIndex,
                         onClick = { selectedSectionId = s.id; scope.launch { footnotes = db.footnoteDao().getBySection(s.id) } },
                         onEdit = { dialog = EditorDialog.Section(s, s.roleId) },
