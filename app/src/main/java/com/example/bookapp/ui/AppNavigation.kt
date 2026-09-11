@@ -52,6 +52,7 @@ private const val ROUTE_VERSION = "version"
 private const val ROUTE_CHANGELOG = "changelog"
 private const val ROUTE_GLOSSARY = "glossary"
 private const val ROUTE_MUHARRAM_CALENDAR = "muharram_calendar"
+private const val ROUTE_CONTENT_MANAGEMENT = "content_management"
 private const val ROUTE_FIELDS = "fields"
 private const val ROUTE_TAZIEHS = "taziehs/{fieldId}/{fieldTitle}"
 private const val ROUTE_ROLES = "roles/{taziehId}/{taziehTitle}"
@@ -180,6 +181,7 @@ fun AppNavigation(
                 onOpenChangelog = { navController.navigate(ROUTE_CHANGELOG) },
                 onOpenGlossary = { navController.navigate(ROUTE_GLOSSARY) },
                 onOpenMuharramCalendar = { navController.navigate(ROUTE_MUHARRAM_CALENDAR) },
+                onOpenContentManagement = { navController.navigate(ROUTE_CONTENT_MANAGEMENT) },
                 onItemClick = { result -> navController.navigate("text/${result.sectionId}") }
             )
         }
@@ -425,6 +427,83 @@ fun AppNavigation(
                     scope.launch {
                         val tazieh = db.taziehDao().getById(taziehId)
                         if (tazieh != null) navController.navigate("roles/$taziehId/${tazieh.title}")
+                    }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ROUTE_CONTENT_MANAGEMENT) {
+            var fieldsCount by remember { mutableIntStateOf(0) }
+            var taziehsCount by remember { mutableIntStateOf(0) }
+            var rolesCount by remember { mutableIntStateOf(0) }
+            var sectionsCount by remember { mutableIntStateOf(0) }
+            var imagesCount by remember { mutableIntStateOf(0) }
+            var dialoguesCount by remember { mutableIntStateOf(0) }
+            var processedFilesCount by remember { mutableIntStateOf(0) }
+            var warnings by remember { mutableStateOf(emptyList<String>()) }
+            var busy by remember { mutableStateOf(false) }
+            var message by remember { mutableStateOf<String?>(null) }
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+            suspend fun reload() {
+                val fields = db.fieldDao().getAll()
+                val taziehs = db.taziehDao().getAll()
+                val roles = taziehs.flatMap { db.roleDao().getByTazieh(it.id) }
+                val sections = db.sectionDao().getAll()
+                val images = taziehs.sumOf { db.taziehImageDao().getByTazieh(it.id).size }
+                val dialogues = taziehs.sumOf { db.dialogueDao().getByTazieh(it.id).size }
+                fieldsCount = fields.size
+                taziehsCount = taziehs.size
+                rolesCount = roles.size
+                sectionsCount = sections.size
+                imagesCount = images
+                dialoguesCount = dialogues
+                processedFilesCount = Prefs.getProcessedContentFiles(context).size
+                warnings = buildList {
+                    if (fields.any { it.title.isBlank() }) add("یک یا چند زمینه بدون عنوان است")
+                    if (taziehs.any { it.title.isBlank() }) add("یک یا چند تعزیه بدون عنوان است")
+                    if (roles.any { it.title.isBlank() }) add("یک یا چند نقش بدون عنوان است")
+                    if (sections.any { it.content.isBlank() }) add("یک یا چند بخش بدون متن است")
+                    if (fields.any { it.uid.isBlank() } || taziehs.any { it.uid.isBlank() } || roles.any { it.uid.isBlank() } || sections.any { it.uid.isBlank() }) add("یک یا چند رکورد شناسه پایدار ندارد")
+                }
+            }
+            LaunchedEffect(Unit) { reload() }
+
+            ContentManagementScreen(
+                fieldsCount = fieldsCount,
+                taziehsCount = taziehsCount,
+                rolesCount = rolesCount,
+                sectionsCount = sectionsCount,
+                imagesCount = imagesCount,
+                dialoguesCount = dialoguesCount,
+                healthWarnings = warnings,
+                processedFilesCount = processedFilesCount,
+                busy = busy,
+                message = message,
+                onRefresh = { scope.launch { reload() } },
+                onSyncLocal = {
+                    scope.launch {
+                        busy = true
+                        message = null
+                        try {
+                            val count = syncLocalContentFiles(context, db)
+                            reload()
+                            message = if (count == 0) "محتوای جدیدی برای اضافه‌کردن وجود ندارد." else "$count فایل محتوایی بررسی و به‌روزرسانی شد."
+                        } catch (e: Exception) {
+                            message = "خطا در به‌روزرسانی محتوا: ${e.message ?: "خطای نامشخص"}"
+                        } finally { busy = false }
+                    }
+                },
+                onSyncRemote = {
+                    scope.launch {
+                        busy = true
+                        message = null
+                        try {
+                            val result = syncRemoteContent(db)
+                            reload()
+                            message = result.fold({ "محتوای آنلاین با موفقیت همگام شد." }, { "خطا در همگام‌سازی آنلاین: ${it.message ?: "خطای نامشخص"}" })
+                        } finally { busy = false }
                     }
                 },
                 onBack = { navController.popBackStack() }

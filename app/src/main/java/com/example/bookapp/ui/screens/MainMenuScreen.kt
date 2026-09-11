@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -46,6 +47,7 @@ fun MainMenuScreen(
     onOpenChangelog: () -> Unit,
     onOpenGlossary: () -> Unit,
     onOpenMuharramCalendar: () -> Unit,
+    onOpenContentManagement: () -> Unit,
     onItemClick: (SearchResult) -> Unit
 ) {
     Scaffold(
@@ -108,6 +110,8 @@ fun MainMenuScreen(
             MenuCard("درباره برنامه", Icons.Filled.Info, onOpenAbout)
             Spacer(Modifier.height(10.dp))
             MenuCard("تنظیمات", Icons.Filled.Settings, onOpenSettings)
+            Spacer(Modifier.height(10.dp))
+            MenuCard("مدیریت محتوا", Icons.Filled.Storage, onOpenContentManagement, accentColor = TaziehGreen)
             Spacer(Modifier.height(10.dp))
             MenuCard("ورژن برنامه", null, onOpenVersion)
             Spacer(Modifier.height(10.dp))
