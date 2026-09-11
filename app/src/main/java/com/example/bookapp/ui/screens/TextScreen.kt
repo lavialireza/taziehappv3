@@ -29,7 +29,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.example.bookapp.data.AudioPlayerHelper
+import com.example.bookapp.ui.theme.FontChoiceLabels
+import com.example.bookapp.ui.theme.FontChoices
 import com.example.bookapp.data.FootnoteEntity
 import com.example.bookapp.data.Prefs
 import com.example.bookapp.data.SearchResult
@@ -68,6 +71,8 @@ fun TextScreen(
     onDarkModeChange: (Boolean) -> Unit = {},
     fontScale: Float = 1f,
     onFontScaleChange: (Float) -> Unit = {},
+    fontChoice: String = "titr",
+    onFontChoiceChange: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -90,6 +95,14 @@ fun TextScreen(
 
     val lineSpacing = remember { Prefs.getLineSpacing(context) }
     val scrollState = rememberScrollState()
+    // تنظیمات خواننده را محلی هم نگه می‌داریم تا تغییرات داخل همین صفحه
+    // بدون وابستگی به بازسازی NavHost فوراً روی متن دیده شوند.
+    var readerFontScale by remember { mutableFloatStateOf(fontScale) }
+    var readerDarkMode by remember { mutableStateOf(darkMode) }
+    var readerFontChoice by remember { mutableStateOf(fontChoice) }
+    LaunchedEffect(fontScale) { readerFontScale = fontScale }
+    LaunchedEffect(darkMode) { readerDarkMode = darkMode }
+    LaunchedEffect(fontChoice) { readerFontChoice = fontChoice }
     var autoScroll by remember { mutableStateOf(Prefs.isReaderAutoScroll(context)) }
     var showReaderSettings by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
@@ -157,6 +170,7 @@ fun TextScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = if (readerDarkMode) Color.Black else MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (!immersive) {
@@ -306,14 +320,16 @@ fun TextScreen(
             // این کار باعث می‌شود تغییر Slider بدون وابستگی به LocalDensity فوراً
             // روی متن اعمال شود و سایر ابعاد رابط کاربری ناخواسته تغییر نکنند.
             val baseTextStyle = MaterialTheme.typography.bodyLarge
-            val scaledFontSize = baseTextStyle.fontSize * fontScale
-            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * fontScale
+            val readerFontFamily = FontChoices[readerFontChoice] ?: FontChoices["titr"]
+            val scaledFontSize = baseTextStyle.fontSize * readerFontScale
+            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * readerFontScale
             Text(
                 content,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (readerDarkMode) Color(0xFFEFE0C0) else MaterialTheme.colorScheme.onSurface,
                 style = baseTextStyle.copy(
                     fontSize = scaledFontSize,
-                    lineHeight = scaledLineHeight
+                    lineHeight = scaledLineHeight,
+                    fontFamily = readerFontFamily
                 )
             )
 
@@ -382,10 +398,13 @@ fun TextScreen(
             title = { Text("تنظیمات مطالعه") },
             text = {
                 Column {
-                    Text("اندازه متن: ${(fontScale * 100).toInt()}٪")
+                    Text("اندازه متن: ${(readerFontScale * 100).toInt()}٪")
                     Slider(
-                        value = fontScale,
-                        onValueChange = onFontScaleChange,
+                        value = readerFontScale,
+                        onValueChange = { value ->
+                            readerFontScale = value
+                            onFontScaleChange(value)
+                        },
                         valueRange = 0.8f..2.0f,
                         steps = 11
                     )
@@ -395,7 +414,32 @@ fun TextScreen(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
                         Text("حالت مطالعه شب")
-                        Switch(checked = darkMode, onCheckedChange = onDarkModeChange)
+                        Switch(
+                            checked = readerDarkMode,
+                            onCheckedChange = { enabled ->
+                                readerDarkMode = enabled
+                                onDarkModeChange(enabled)
+                            }
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("فونت متن")
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FontChoiceLabels.forEach { (key, label) ->
+                            FilterChip(
+                                selected = readerFontChoice == key,
+                                onClick = {
+                                    readerFontChoice = key
+                                    onFontChoiceChange(key)
+                                },
+                                label = { Text(label, fontFamily = FontChoices[key]) }
+                            )
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
