@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
@@ -31,6 +33,8 @@ fun ContentManagementScreen(
     onSyncLocal: () -> Unit,
     onSyncRemote: () -> Unit,
     onOpenEditor: () -> Unit,
+    onImportJson: () -> Unit,
+    onExportJson: () -> Unit,
     busy: Boolean,
     message: String?,
     onBack: () -> Unit
@@ -110,6 +114,19 @@ fun ContentManagementScreen(
                             Icon(Icons.Filled.Storage, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text("ویرایش و مدیریت ساختار محتوا")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = onImportJson, enabled = !busy, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Filled.FileUpload, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("ورود JSON")
+                            }
+                            OutlinedButton(onClick = onExportJson, enabled = !busy, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Filled.FileDownload, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("خروجی JSON")
+                            }
                         }
                     }
                 }

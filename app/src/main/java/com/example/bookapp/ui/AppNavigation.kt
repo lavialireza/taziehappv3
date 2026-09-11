@@ -17,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Share
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Text
@@ -42,6 +44,10 @@ import com.example.bookapp.data.SearchResult
 import com.example.bookapp.data.SectionEntity
 import com.example.bookapp.data.syncLocalContentFiles
 import com.example.bookapp.data.syncRemoteContent
+import com.example.bookapp.data.exportContentJson
+import com.example.bookapp.data.previewContentImport
+import com.example.bookapp.data.importContentJson
+import com.example.bookapp.data.readJsonFromUri
 import com.example.bookapp.ui.screens.*
 import kotlinx.coroutines.launch
 
@@ -455,6 +461,46 @@ fun AppNavigation(
             var busy by remember { mutableStateOf(false) }
             var message by remember { mutableStateOf<String?>(null) }
             val scope = androidx.compose.runtime.rememberCoroutineScope()
+            var showImportPreview by remember { mutableStateOf<com.example.bookapp.data.ContentImportPreview?>(null) }
+            var pendingImportJson by remember { mutableStateOf<String?>(null) }
+
+            val exportLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("application/json")
+            ) { uri ->
+                if (uri != null) {
+                    scope.launch {
+                        busy = true
+                        message = null
+                        try {
+                            val json = exportContentJson(db)
+                            context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8).use { out ->
+                                out?.write(json) ?: throw IllegalArgumentException("امکان ذخیره فایل وجود ندارد")
+                            }
+                            message = "خروجی JSON با موفقیت ذخیره شد."
+                        } catch (e: Exception) {
+                            message = "خطا در خروجی JSON: ${e.message ?: "خطای نامشخص"}"
+                        } finally { busy = false }
+                    }
+                }
+            }
+            val importLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    scope.launch {
+                        busy = true
+                        message = null
+                        try {
+                            val json = readJsonFromUri(context, uri)
+                            val preview = previewContentImport(db, json)
+                            pendingImportJson = if (preview.valid) json else null
+                            showImportPreview = preview
+                        } catch (e: Exception) {
+                            message = "خطا در خواندن JSON: ${e.message ?: "فایل نامعتبر"}"
+                        } finally { busy = false }
+                    }
+                }
+            }
 
             suspend fun reload() {
                 val fields = db.fieldDao().getAll()
@@ -517,8 +563,62 @@ fun AppNavigation(
                     }
                 },
                 onOpenEditor = { navController.navigate(ROUTE_CONTENT_EDITOR) },
+                onImportJson = { importLauncher.launch(arrayOf("application/json", "text/json", "text/plain")) },
+                onExportJson = { exportLauncher.launch("tazieh-content.json") },
                 onBack = { navController.popBackStack() }
             )
+            if (showImportPreview != null) {
+                val preview = showImportPreview!!
+                AlertDialog(
+                    onDismissRequest = { showImportPreview = null; pendingImportJson = null },
+                    title = { Text(if (preview.valid) "پیش‌نمایش ورود محتوا" else "فایل JSON نامعتبر است") },
+                    text = {
+                        if (!preview.valid) {
+                            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                                items(preview.errors.take(12)) { Text("• $it") }
+                            }
+                        } else {
+                            Column {
+                                Text("زمینه: ${preview.fields}")
+                                Text("تعزیه: ${preview.taziehs}")
+                                Text("نقش: ${preview.roles}")
+                                Text("بخش: ${preview.sections}")
+                                Spacer(Modifier.height(8.dp))
+                                Text("رکوردهای موجود که به‌روزرسانی می‌شوند: ${preview.existingItems}")
+                                Text("رکوردهای جدید: ${preview.newItems}")
+                                Spacer(Modifier.height(8.dp))
+                                Text("فقط ساختار محتوا وارد می‌شود؛ اطلاعات شخصی، یادداشت‌ها، بوکمارک‌ها، تصاویر و گفتگوهای محلی دست‌کاری نمی‌شوند.")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        if (preview.valid) {
+                            TextButton(
+                                enabled = pendingImportJson != null,
+                                onClick = {
+                                    val json = pendingImportJson
+                                    if (json != null) {
+                                    showImportPreview = null
+                                    pendingImportJson = null
+                                    scope.launch {
+                                        busy = true
+                                        message = null
+                                        try {
+                                            val result = importContentJson(db, json)
+                                            reload()
+                                            message = "ورود محتوا انجام شد: ${result.newItems} رکورد جدید و ${result.existingItems} رکورد به‌روزرسانی‌شده."
+                                        } catch (e: Exception) {
+                                            message = "خطا در ورود محتوا: ${e.message ?: "خطای نامشخص"}"
+                                        } finally { busy = false }
+                                    }
+                                    }
+                                }
+                            ) { Text("تأیید و ورود") }
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = { showImportPreview = null; pendingImportJson = null }) { Text("انصراف") } }
+                )
+            }
         }
 
         composable(ROUTE_CONTENT_EDITOR) {
