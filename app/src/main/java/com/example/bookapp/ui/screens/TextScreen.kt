@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -64,10 +63,6 @@ fun TextScreen(
     fieldTitle: String? = null,
     taziehTitle: String? = null,
     roleTitle: String? = null,
-    darkMode: Boolean = false,
-    onDarkModeChange: (Boolean) -> Unit = {},
-    fontScale: Float = 1f,
-    onFontScaleChange: (Float) -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -89,9 +84,6 @@ fun TextScreen(
     }
 
     val lineSpacing = remember { Prefs.getLineSpacing(context) }
-    val scrollState = rememberScrollState()
-    var autoScroll by remember { mutableStateOf(Prefs.isReaderAutoScroll(context)) }
-    var showReaderSettings by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -137,15 +129,6 @@ fun TextScreen(
         onDispose {
             speechHelper.shutdown()
             audioPlayerHelper.stop()
-        }
-    }
-
-    LaunchedEffect(isSpeaking, audioUrl, autoScroll) {
-        if (isSpeaking && autoScroll && !audioUrl.isNullOrBlank()) {
-            while (isSpeaking && autoScroll) {
-                scrollState.animateScrollTo((scrollState.maxValue * audioPlayerHelper.progress()).toInt())
-                kotlinx.coroutines.delay(400)
-            }
         }
     }
 
@@ -207,19 +190,6 @@ fun TextScreen(
                                 applyImmersive(immersive)
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("تنظیمات مطالعه متن") },
-                            leadingIcon = { Icon(Icons.Filled.TextIncrease, contentDescription = null) },
-                            onClick = { moreExpanded = false; showReaderSettings = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(if (autoScroll) "خاموش کردن حرکت خودکار متن" else "روشن کردن حرکت خودکار متن") },
-                            onClick = {
-                                moreExpanded = false
-                                autoScroll = !autoScroll
-                                Prefs.setReaderAutoScroll(context, autoScroll)
-                            }
-                        )
                         if (sectionId != null) {
                             DropdownMenuItem(
                                 text = { Text("برچسب شخصی") },
@@ -267,7 +237,7 @@ fun TextScreen(
                 .fillMaxSize()
                 .then(if (immersive) Modifier.clickable { immersive = false; applyImmersive(false) } else Modifier)
                 .padding(padding)
-                .verticalScroll(scrollState),
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
         ) {
         // روی صفحه‌های بزرگ (تبلت) عرض متن محدود می‌شود تا طول خط زیاد نشود و خواندن راحت بماند
@@ -360,49 +330,6 @@ fun TextScreen(
             }
         }
         }
-    }
-
-    if (showReaderSettings) {
-        AlertDialog(
-            onDismissRequest = { showReaderSettings = false },
-            title = { Text("تنظیمات مطالعه") },
-            text = {
-                Column {
-                    Text("اندازه متن: ${(fontScale * 100).toInt()}٪")
-                    Slider(
-                        value = fontScale,
-                        onValueChange = onFontScaleChange,
-                        valueRange = 0.8f..2.0f,
-                        steps = 11
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("حالت مطالعه شب")
-                        Switch(checked = darkMode, onCheckedChange = onDarkModeChange)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("حرکت خودکار متن هنگام پخش صوت")
-                        Switch(
-                            checked = autoScroll,
-                            onCheckedChange = {
-                                autoScroll = it
-                                Prefs.setReaderAutoScroll(context, it)
-                            }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showReaderSettings = false }) { Text("بستن") }
-            }
-        )
     }
 
     if (showTagDialog && sectionId != null) {
