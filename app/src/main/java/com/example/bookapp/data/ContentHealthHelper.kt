@@ -58,7 +58,7 @@ suspend fun buildDetailedContentHealthReport(db: AppDatabase): ContentHealthRepo
             val sd = duplicateCount(roleSections.map { it.title })
             duplicateTitles += sd
             if (sd > 0) warnings += "در نقش «${role.title}» بخش‌های تکراری وجود دارد."
-            val expected = roleSections.indices
+            val expected = roleSections.indices.toList()
             if (roleSections.map { it.orderIndex } != expected) {
                 orderIssues++
                 warnings += "ترتیب بخش‌های نقش «${role.title}» پیوسته نیست."
@@ -77,7 +77,7 @@ suspend fun buildDetailedContentHealthReport(db: AppDatabase): ContentHealthRepo
 
     for (tazieh in taziehs) {
         val taziehRoles = roles.filter { it.taziehId == tazieh.id }.sortedWith(compareBy<RoleEntity> { it.orderIndex }.thenBy { it.id })
-        if (taziehRoles.map { it.orderIndex } != taziehRoles.indices) {
+        if (taziehRoles.map { it.orderIndex } != taziehRoles.indices.toList()) {
             orderIssues++
             warnings += "ترتیب نقش‌های تعزیه «${tazieh.title}» پیوسته نیست."
         }
