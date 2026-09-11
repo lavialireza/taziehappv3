@@ -593,13 +593,20 @@ fun AppNavigation(
                 onImportWord = { wordImportLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream")) },
                 onDetailedHealthCheck = { scope.launch { busy = true; try { healthReport = buildDetailedContentHealthReport(db) } finally { busy = false } } },
                 onExportHealthReport = {
-                    val report = healthReport ?: buildDetailedContentHealthReport(db)
-                    val text = report.toPersianText()
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, text)
-                        putExtra(Intent.EXTRA_SUBJECT, "گزارش سلامت محتوا")
-                    }, "اشتراک‌گذاری گزارش"))
+                    scope.launch {
+                        busy = true
+                        try {
+                            val report = healthReport ?: buildDetailedContentHealthReport(db).also { healthReport = it }
+                            val text = report.toPersianText()
+                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, text)
+                                putExtra(Intent.EXTRA_SUBJECT, "گزارش سلامت محتوا")
+                            }, "اشتراک‌گذاری گزارش"))
+                        } finally {
+                            busy = false
+                        }
+                    }
                 },
                 onBack = { navController.popBackStack() }
             )
