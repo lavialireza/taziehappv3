@@ -205,10 +205,7 @@ fun SettingsScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Text(
                     "نمونه متن: این نوشته برای مشاهده واقعی اندازه فونت است. با حرکت نوار، اندازه همین متن نیز تغییر می‌کند.",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = MaterialTheme.typography.bodyLarge.fontSize * fontScale.coerceIn(0.8f, 2.0f),
-                        lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * fontScale.coerceIn(0.8f, 2.0f)
-                    ),
+                    style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.fillMaxWidth().padding(12.dp)
                 )
             }

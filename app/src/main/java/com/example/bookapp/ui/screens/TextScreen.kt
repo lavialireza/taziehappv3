@@ -96,6 +96,11 @@ fun TextScreen(
     }
 
     var lineSpacing by remember { mutableFloatStateOf(Prefs.getLineSpacing(context)) }
+    // تنظیمات خواننده را محلی هم نگه می‌داریم تا تغییرات داخل همین صفحه
+    // بدون وابستگی به بازسازی NavHost فوراً روی متن دیده شوند.
+    var readerFontScale by remember { mutableFloatStateOf(fontScale) }
+    var readerDarkMode by remember { mutableStateOf(darkMode) }
+    var readerFontChoice by remember { mutableStateOf(fontChoice) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -109,11 +114,6 @@ fun TextScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val scrollState = rememberScrollState()
-    // تنظیمات خواننده را محلی هم نگه می‌داریم تا تغییرات داخل همین صفحه
-    // بدون وابستگی به بازسازی NavHost فوراً روی متن دیده شوند.
-    var readerFontScale by remember { mutableFloatStateOf(fontScale) }
-    var readerDarkMode by remember { mutableStateOf(darkMode) }
-    var readerFontChoice by remember { mutableStateOf(fontChoice) }
     LaunchedEffect(fontScale) { readerFontScale = fontScale }
     LaunchedEffect(darkMode) { readerDarkMode = darkMode }
     LaunchedEffect(fontChoice) { readerFontChoice = fontChoice }
@@ -330,21 +330,15 @@ fun TextScreen(
                 AssistChip(onClick = { showTagDialog = true }, label = { Text(tag!!) })
                 Spacer(Modifier.height(8.dp))
             }
-            // اندازه فونت متن خواننده را مستقیماً روی Text اعمال می‌کنیم.
-            // این کار باعث می‌شود تغییر Slider بدون وابستگی به LocalDensity فوراً
-            // روی متن اعمال شود و سایر ابعاد رابط کاربری ناخواسته تغییر نکنند.
+            // اندازه و فونت اصلی از MaterialTheme گرفته می‌شود تا همان تنظیمات
+            // سراسری در تمام بخش‌های متنی برنامه نیز اعمال شود. lineSpacing فقط
+            // فاصله خطوط مخصوص صفحه مطالعه را کنترل می‌کند.
             val baseTextStyle = MaterialTheme.typography.bodyLarge
-            val readerFontFamily = FontChoices[readerFontChoice] ?: FontChoices["titr"]
-            val scaledFontSize = baseTextStyle.fontSize * readerFontScale
-            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * readerFontScale
+            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing
             Text(
                 content,
                 color = if (readerDarkMode) Color(0xFFEFE0C0) else MaterialTheme.colorScheme.onSurface,
-                style = baseTextStyle.copy(
-                    fontSize = scaledFontSize,
-                    lineHeight = scaledLineHeight,
-                    fontFamily = readerFontFamily
-                )
+                style = baseTextStyle.copy(lineHeight = scaledLineHeight)
             )
 
             if (hasPrevSection || hasNextSection) {

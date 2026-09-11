@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
             }
 
             val colorScheme = colorSchemeFor(themeChoice, darkMode)
-            val typography = typographyFor(fontChoice)
+            val typography = typographyFor(fontChoice, fontScale)
             MaterialTheme(colorScheme = colorScheme, typography = typography) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppNavigation(

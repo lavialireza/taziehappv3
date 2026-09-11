@@ -13,12 +13,6 @@ val TaziehFontFamily = FontFamily(
     Font(R.font.b_titr_bold, FontWeight.Bold)
 )
 
-/**
- * فونت‌های قابل انتخاب در تنظیمات. در حال حاضر فقط یک فایل فونت اختصاصی
- * (B Titr Bold) در پروژه موجود است؛ بقیه گزینه‌ها از فونت‌های عمومی
- * خود اندروید هستند. اگر فایل فونت (.ttf) دیگری ارسال شود، به همین لیست
- * اضافه می‌شود.
- */
 val FontChoices = mapOf(
     "titr" to TaziehFontFamily,
     "serif" to FontFamily.Serif,
@@ -33,23 +27,36 @@ val FontChoiceLabels = mapOf(
     "cursive" to "شکسته",
 )
 
-fun typographyFor(fontChoice: String): Typography {
+/**
+ * تایپوگرافی سراسری برنامه. fontScale روی متن‌های استاندارد Material اعمال می‌شود
+ * تا تنظیم اندازه متن فقط محدود به صفحه مطالعه نباشد.
+ */
+fun typographyFor(fontChoice: String, fontScale: Float = 1f): Typography {
     val family = FontChoices[fontChoice] ?: TaziehFontFamily
+    val scale = fontScale.coerceIn(0.8f, 2.0f)
+    fun style(size: Float, line: Float, weight: FontWeight? = null) =
+        TextStyle(
+            fontFamily = family,
+            fontSize = (size * scale).sp,
+            lineHeight = (line * scale).sp,
+            fontWeight = weight
+        )
+
     return Typography(
-        displayLarge = TextStyle(fontFamily = family),
-        displayMedium = TextStyle(fontFamily = family),
-        displaySmall = TextStyle(fontFamily = family),
-        headlineLarge = TextStyle(fontFamily = family),
-        headlineMedium = TextStyle(fontFamily = family),
-        headlineSmall = TextStyle(fontFamily = family),
-        titleLarge = TextStyle(fontFamily = family),
-        titleMedium = TextStyle(fontFamily = family),
-        titleSmall = TextStyle(fontFamily = family),
-        bodyLarge = TextStyle(fontFamily = family, fontSize = 18.sp, lineHeight = 32.sp),
-        bodyMedium = TextStyle(fontFamily = family),
-        bodySmall = TextStyle(fontFamily = family),
-        labelLarge = TextStyle(fontFamily = family),
-        labelMedium = TextStyle(fontFamily = family),
-        labelSmall = TextStyle(fontFamily = family)
+        displayLarge = style(57f, 64f),
+        displayMedium = style(45f, 52f),
+        displaySmall = style(36f, 44f),
+        headlineLarge = style(32f, 40f),
+        headlineMedium = style(28f, 36f),
+        headlineSmall = style(24f, 32f),
+        titleLarge = style(22f, 28f),
+        titleMedium = style(16f, 24f, FontWeight.Medium),
+        titleSmall = style(14f, 20f, FontWeight.Medium),
+        bodyLarge = style(18f, 32f),
+        bodyMedium = style(16f, 24f),
+        bodySmall = style(14f, 20f),
+        labelLarge = style(14f, 20f, FontWeight.Medium),
+        labelMedium = style(12f, 16f, FontWeight.Medium),
+        labelSmall = style(11f, 16f, FontWeight.Medium)
     )
 }
