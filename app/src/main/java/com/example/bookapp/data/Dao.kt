@@ -22,6 +22,9 @@ interface FieldDao {
     @Insert
     suspend fun insert(field: FieldEntity): Long
 
+    @Query("DELETE FROM fields WHERE id = :fieldId")
+    suspend fun delete(fieldId: Long)
+
     @Query("DELETE FROM fields")
     suspend fun deleteAll()
 }
@@ -51,6 +54,9 @@ interface TaziehDao {
 
     @Query("UPDATE taziehs SET author = :author, authorEmail = :authorEmail WHERE id = :taziehId")
     suspend fun updateAuthor(taziehId: Long, author: String?, authorEmail: String?)
+
+    @Query("DELETE FROM taziehs WHERE id = :taziehId")
+    suspend fun delete(taziehId: Long)
 
     @Query("DELETE FROM taziehs")
     suspend fun deleteAll()
@@ -87,6 +93,9 @@ interface RoleDao {
 
     @Query("UPDATE roles SET orderIndex = :orderIndex WHERE id = :roleId")
     suspend fun updateOrderIndex(roleId: Long, orderIndex: Int)
+
+    @Query("DELETE FROM roles WHERE id = :roleId")
+    suspend fun delete(roleId: Long)
 
     @Query("DELETE FROM roles")
     suspend fun deleteAll()

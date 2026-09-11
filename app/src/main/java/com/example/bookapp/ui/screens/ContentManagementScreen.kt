@@ -30,6 +30,7 @@ fun ContentManagementScreen(
     onRefresh: () -> Unit,
     onSyncLocal: () -> Unit,
     onSyncRemote: () -> Unit,
+    onOpenEditor: () -> Unit,
     busy: Boolean,
     message: String?,
     onBack: () -> Unit
@@ -103,6 +104,12 @@ fun ContentManagementScreen(
                             Icon(Icons.Filled.CloudSync, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text("همگام‌سازی محتوای آنلاین")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = onOpenEditor, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Storage, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("ویرایش و مدیریت ساختار محتوا")
                         }
                     }
                 }

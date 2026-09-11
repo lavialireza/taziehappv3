@@ -53,6 +53,7 @@ private const val ROUTE_CHANGELOG = "changelog"
 private const val ROUTE_GLOSSARY = "glossary"
 private const val ROUTE_MUHARRAM_CALENDAR = "muharram_calendar"
 private const val ROUTE_CONTENT_MANAGEMENT = "content_management"
+private const val ROUTE_CONTENT_EDITOR = "content_editor"
 private const val ROUTE_FIELDS = "fields"
 private const val ROUTE_TAZIEHS = "taziehs/{fieldId}/{fieldTitle}"
 private const val ROUTE_ROLES = "roles/{taziehId}/{taziehTitle}"
@@ -506,6 +507,14 @@ fun AppNavigation(
                         } finally { busy = false }
                     }
                 },
+                onOpenEditor = { navController.navigate(ROUTE_CONTENT_EDITOR) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ROUTE_CONTENT_EDITOR) {
+            ContentEditorScreen(
+                db = db,
                 onBack = { navController.popBackStack() }
             )
         }
