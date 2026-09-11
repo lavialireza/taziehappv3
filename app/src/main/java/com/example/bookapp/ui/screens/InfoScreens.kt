@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.bookapp.BuildConfig
 import com.example.bookapp.data.AppDatabase
 import com.example.bookapp.data.Prefs
@@ -202,6 +201,17 @@ fun SettingsScreen(
                 steps = 11,
                 modifier = Modifier.fillMaxWidth()
             )
+            Spacer(Modifier.height(8.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Text(
+                    "نمونه متن: این نوشته برای مشاهده واقعی اندازه فونت است. با حرکت نوار، اندازه همین متن نیز تغییر می‌کند.",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = MaterialTheme.typography.bodyLarge.fontSize * fontScale.coerceIn(0.8f, 2.0f),
+                        lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * fontScale.coerceIn(0.8f, 2.0f)
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp)
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -210,24 +220,6 @@ fun SettingsScreen(
                 Text("متوسط", style = MaterialTheme.typography.bodySmall)
                 Text("بزرگ", style = MaterialTheme.typography.bodySmall)
                 Text("خیلی بزرگ", style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Text("پیش‌نمایش اندازه متن", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(6.dp))
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                tonalElevation = 2.dp
-            ) {
-                Text(
-                    "این یک نمونه از متن تعزیه است تا تغییر واقعی اندازه نوشته را مشاهده کنید.",
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    fontSize = 18.sp * fontScale.coerceIn(0.8f, 2.0f),
-                    fontFamily = com.example.bookapp.ui.theme.FontChoices[fontChoice]
-                        ?: com.example.bookapp.ui.theme.TaziehFontFamily,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
             }
 
             Spacer(Modifier.height(24.dp))

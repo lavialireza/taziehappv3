@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
@@ -94,7 +95,19 @@ fun TextScreen(
         onDispose { applyImmersive(false) } // با خروج از صفحه، نوارهای سیستم برمی‌گردند
     }
 
-    val lineSpacing = remember { Prefs.getLineSpacing(context) }
+    var lineSpacing by remember { mutableFloatStateOf(Prefs.getLineSpacing(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                readerFontScale = Prefs.getFontScale(context)
+                lineSpacing = Prefs.getLineSpacing(context)
+                readerFontChoice = Prefs.getFontChoice(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val scrollState = rememberScrollState()
     // تنظیمات خواننده را محلی هم نگه می‌داریم تا تغییرات داخل همین صفحه
     // بدون وابستگی به بازسازی NavHost فوراً روی متن دیده شوند.
@@ -320,22 +333,10 @@ fun TextScreen(
             // اندازه فونت متن خواننده را مستقیماً روی Text اعمال می‌کنیم.
             // این کار باعث می‌شود تغییر Slider بدون وابستگی به LocalDensity فوراً
             // روی متن اعمال شود و سایر ابعاد رابط کاربری ناخواسته تغییر نکنند.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    "اندازه متن: ${(readerFontScale * 100).toInt()}٪",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(Modifier.height(6.dp))
             val baseTextStyle = MaterialTheme.typography.bodyLarge
             val readerFontFamily = FontChoices[readerFontChoice] ?: FontChoices["titr"]
             val scaledFontSize = baseTextStyle.fontSize * readerFontScale
-            val scaledLineHeight = scaledFontSize * lineSpacing
+            val scaledLineHeight = baseTextStyle.fontSize * lineSpacing * readerFontScale
             Text(
                 content,
                 color = if (readerDarkMode) Color(0xFFEFE0C0) else MaterialTheme.colorScheme.onSurface,
