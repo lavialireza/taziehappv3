@@ -47,6 +47,7 @@ fun MainMenuScreen(
     onOpenChangelog: () -> Unit,
     onOpenGlossary: () -> Unit,
     onOpenMuharramCalendar: () -> Unit,
+    showContentManagement: Boolean,
     onOpenContentManagement: () -> Unit,
     onItemClick: (SearchResult) -> Unit
 ) {
@@ -111,8 +112,10 @@ fun MainMenuScreen(
             Spacer(Modifier.height(10.dp))
             MenuCard("تنظیمات", Icons.Filled.Settings, onOpenSettings)
             Spacer(Modifier.height(10.dp))
-            MenuCard("مدیریت محتوا", Icons.Filled.Storage, onOpenContentManagement, accentColor = TaziehGreen)
-            Spacer(Modifier.height(10.dp))
+            if (showContentManagement) {
+                MenuCard("مدیریت محتوا", Icons.Filled.Storage, onOpenContentManagement, accentColor = TaziehGreen)
+                Spacer(Modifier.height(10.dp))
+            }
             MenuCard("ورژن برنامه", null, onOpenVersion)
             Spacer(Modifier.height(10.dp))
             MenuCard("چه چیزی جدید است؟", null, onOpenChangelog)

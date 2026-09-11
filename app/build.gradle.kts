@@ -23,8 +23,23 @@ ksp {
 }
 
 android {
-    val isViewerBuild = providers.gradleProperty("viewerApp").orNull == "true"
     namespace = "com.example.bookapp"
+    flavorDimensions += "access"
+
+    productFlavors {
+        create("admin") {
+            dimension = "access"
+            applicationId = "com.example.bookapp"
+            buildConfigField("Boolean", "PUBLIC_VIEWER", "false")
+            manifestPlaceholders["appLabel"] = "تعزیه و شبیه‌خوانی — مدیر"
+        }
+        create("viewer") {
+            dimension = "access"
+            applicationId = "com.example.bookapp.viewer"
+            buildConfigField("Boolean", "PUBLIC_VIEWER", "true")
+            manifestPlaceholders["appLabel"] = "تعزیه و شبیه‌خوانی"
+        }
+    }
     compileSdk = 34
 
     // شماره نسخه/برچسب هر build را از تاریخچه Git می‌سازد تا هر build برچسب
@@ -45,16 +60,14 @@ android {
     } else "local"
 
     defaultConfig {
-        applicationId = if (isViewerBuild) "com.example.bookapp.viewer" else "com.example.bookapp"
         minSdk = 23
         targetSdk = 34
         // شماره نسخه/برچسب هر build به‌صورت خودکار از تاریخچه Git ساخته می‌شود
         // (تعداد کامیت‌ها = versionCode، و نام نسخه شامل هش کوتاه کامیت است)
         // تا هر build یک برچسب منحصربه‌فرد داشته باشد و قابل ردیابی باشد.
         versionCode = gitCommitCount
-        buildConfigField("Boolean", "PUBLIC_VIEWER", isViewerBuild.toString())
-        versionName = if (isViewerBuild) "1.0-build$gitCommitCount+$gitShortSha-VIEWER" else "1.0-build$gitCommitCount+$gitShortSha"
-        manifestPlaceholders["appLabel"] = if (isViewerBuild) "تعزیه و شبیه‌خوانی - فقط مشاهده" else "تعزیه و شبیه‌خوانی"
+        // شماره نسخه برای هر دو flavor یکسان می‌ماند؛ تفاوت فقط در سطح دسترسی است.
+        versionName = "1.0-build$gitCommitCount+$gitShortSha"
     }
 
     val storeFilePath = signingProp("RELEASE_STORE_FILE")

@@ -129,6 +129,7 @@ fun SettingsScreen(
     onThemeChoiceChange: (String) -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
+    showContentSync: Boolean = true,
     onSyncContent: suspend () -> Result<Unit>,
     db: AppDatabase,
     onBack: () -> Unit
@@ -268,36 +269,39 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
-            Text("بروزرسانی محتوا", style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "اگر محتوای جدیدی به گیت‌هاب اضافه شده، با این دکمه بدون نیاز به نصب دوباره اپ، محتوا به‌روز می‌شود (نیاز به اینترنت دارد).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = {
-                    syncing = true
-                    syncMessage = null
-                    scope.launch {
-                        val result = onSyncContent()
-                        syncing = false
-                        syncMessage = if (result.isSuccess) {
-                            com.example.bookapp.data.showNewContentNotification(context, 1)
-                            "محتوا با موفقیت به‌روزرسانی شد ✅"
-                        } else {
-                            "خطا در بروزرسانی: ${result.exceptionOrNull()?.message ?: "اتصال اینترنت را بررسی کنید"} ❌"
-                        }
-                    }
-                },
-                enabled = !syncing
-            ) {
-                Text(if (syncing) "در حال بروزرسانی..." else "بروزرسانی محتوا از اینترنت")
-            }
-            syncMessage?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodySmall)
+            if (showContentSync) {
+                            Text("بروزرسانی محتوا", style = MaterialTheme.typography.bodyLarge)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "اگر محتوای جدیدی به گیت‌هاب اضافه شده، با این دکمه بدون نیاز به نصب دوباره اپ، محتوا به‌روز می‌شود (نیاز به اینترنت دارد).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    syncing = true
+                                    syncMessage = null
+                                    scope.launch {
+                                        val result = onSyncContent()
+                                        syncing = false
+                                        syncMessage = if (result.isSuccess) {
+                                            com.example.bookapp.data.showNewContentNotification(context, 1)
+                                            "محتوا با موفقیت به‌روزرسانی شد ✅"
+                                        } else {
+                                            "خطا در بروزرسانی: ${result.exceptionOrNull()?.message ?: "اتصال اینترنت را بررسی کنید"} ❌"
+                                        }
+                                    }
+                                },
+                                enabled = !syncing
+                            ) {
+                                Text(if (syncing) "در حال بروزرسانی..." else "بروزرسانی محتوا از اینترنت")
+                            }
+                            syncMessage?.let {
+                                Spacer(Modifier.height(8.dp))
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
+
             }
 
             Spacer(Modifier.height(24.dp))

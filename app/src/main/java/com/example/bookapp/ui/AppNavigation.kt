@@ -211,7 +211,8 @@ fun AppNavigation(
                 onOpenChangelog = { navController.navigate(ROUTE_CHANGELOG) },
                 onOpenGlossary = { navController.navigate(ROUTE_GLOSSARY) },
                 onOpenMuharramCalendar = { navController.navigate(ROUTE_MUHARRAM_CALENDAR) },
-                onOpenContentManagement = { navController.navigate(ROUTE_CONTENT_MANAGEMENT) },
+                showContentManagement = !publicViewer,
+                onOpenContentManagement = { if (!publicViewer) navController.navigate(ROUTE_CONTENT_MANAGEMENT) },
                 onItemClick = { result -> navController.navigate("text/${result.sectionId}") }
             )
         }
@@ -399,6 +400,7 @@ fun AppNavigation(
                 onThemeChoiceChange = onThemeChoiceChange,
                 keepScreenOn = keepScreenOn,
                 onKeepScreenOnChange = onKeepScreenOnChange,
+                showContentSync = !publicViewer,
                 onSyncContent = { syncRemoteContent(db) },
                 db = db,
                 onBack = { navController.popBackStack() }
