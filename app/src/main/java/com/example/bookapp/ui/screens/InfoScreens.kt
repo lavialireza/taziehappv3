@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.bookapp.BuildConfig
 import com.example.bookapp.data.AppDatabase
+import com.example.bookapp.data.UpdateHelper
 import com.example.bookapp.data.Prefs
 import kotlinx.coroutines.launch
 
@@ -131,6 +132,7 @@ fun SettingsScreen(
     onKeepScreenOnChange: (Boolean) -> Unit,
     showContentSync: Boolean = true,
     onSyncContent: suspend () -> Result<Unit>,
+    onCheckAppUpdate: suspend () -> Result<UpdateHelper.UpdateInfo?> = { Result.success(null) },
     db: AppDatabase,
     onBack: () -> Unit
 ) {
@@ -269,6 +271,46 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
+            Text("بروزرسانی برنامه", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "استفاده عادی برنامه بدون اینترنت است. با این دکمه فقط در صورت اتصال اینترنت، نسخه جدید بررسی می‌شود.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            var checkingAppUpdate by remember { mutableStateOf(false) }
+            var appUpdateMessage by remember { mutableStateOf<String?>(null) }
+            Button(
+                onClick = {
+                    checkingAppUpdate = true
+                    appUpdateMessage = null
+                    scope.launch {
+                        val result = onCheckAppUpdate()
+                        checkingAppUpdate = false
+                        appUpdateMessage = result.fold(
+                            onSuccess = { info ->
+                                if (info == null) {
+                                    "برنامه شما به‌روز است. نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}"
+                                } else {
+                                    com.example.bookapp.data.UpdateHelper.openDownloadPage(context, info.downloadUrl)
+                                    "نسخه جدید ${info.tagName} پیدا شد؛ صفحه دریافت باز شد."
+                                }
+                            },
+                            onFailure = { "بررسی بروزرسانی ناموفق بود: ${it.message ?: "اتصال اینترنت را بررسی کنید"}" }
+                        )
+                    }
+                },
+                enabled = !checkingAppUpdate
+            ) {
+                Text(if (checkingAppUpdate) "در حال بررسی..." else "بررسی بروزرسانی برنامه")
+            }
+            appUpdateMessage?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Spacer(Modifier.height(24.dp))
             if (showContentSync) {
                             Text("بروزرسانی محتوا", style = MaterialTheme.typography.bodyLarge)
                             Spacer(Modifier.height(4.dp))

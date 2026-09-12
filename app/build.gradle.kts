@@ -72,15 +72,18 @@ android {
         }.getOrNull() ?: "local"
     } else "local"
 
+    val ciReleaseNumber = providers.gradleProperty("releaseNumber").orNull?.toIntOrNull()
+    val effectiveBuildNumber = ciReleaseNumber ?: gitCommitCount
+
     defaultConfig {
         minSdk = 23
         targetSdk = 34
         // شماره نسخه/برچسب هر build به‌صورت خودکار از تاریخچه Git ساخته می‌شود
         // (تعداد کامیت‌ها = versionCode، و نام نسخه شامل هش کوتاه کامیت است)
         // تا هر build یک برچسب منحصربه‌فرد داشته باشد و قابل ردیابی باشد.
-        versionCode = gitCommitCount
+        versionCode = effectiveBuildNumber
         // شماره نسخه برای هر دو flavor یکسان می‌ماند؛ تفاوت فقط در سطح دسترسی است.
-        versionName = "1.0-build$gitCommitCount+$gitShortSha"
+        versionName = "1.0-build$effectiveBuildNumber+$gitShortSha"
     }
 
     val storeFilePath = signingProp("RELEASE_STORE_FILE")
