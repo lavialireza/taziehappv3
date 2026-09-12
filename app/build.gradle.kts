@@ -90,6 +90,15 @@ android {
     val hasReleaseSigning = storeFilePath != null
 
     signingConfigs {
+        // امضای ثابت فقط برای Debug/آزمایش CI است تا APK هر build بتواند
+        // روی build آزمایشی قبلی همان flavor نصبِ بروزرسانی شود. این کلید
+        // برای انتشار رسمی/Play Store نیست.
+        create("testDebug") {
+            storeFile = rootProject.file("ci/tazieh-test-signing.jks")
+            storePassword = "tazieh-test-2026"
+            keyAlias = "taziehTest"
+            keyPassword = "tazieh-test-2026"
+        }
         if (hasReleaseSigning) {
             create("release") {
                 storeFile = file(storeFilePath!!)
@@ -101,6 +110,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // امضای ثابت برای زنجیره بروزرسانی APKهای آزمایشی CI.
+            signingConfig = signingConfigs.getByName("testDebug")
+        }
         release {
             // انتشار واقعی: کد Viewer در Release با R8 کوچک‌سازی و مبهم‌سازی می‌شود.
             isMinifyEnabled = true

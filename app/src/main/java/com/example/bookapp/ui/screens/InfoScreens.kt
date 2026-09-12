@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.bookapp.BuildConfig
 import com.example.bookapp.data.AppDatabase
 import com.example.bookapp.data.UpdateHelper
@@ -221,15 +222,20 @@ fun SettingsScreen(
                 steps = 11,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(Modifier.height(16.dp))
+            Text("فونت متن", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Text(
-                    "نمونه متن: این نوشته برای مشاهده واقعی اندازه فونت است. با حرکت نوار، اندازه همین متن نیز تغییر می‌کند.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.fillMaxWidth().padding(12.dp)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.example.bookapp.ui.theme.FontChoiceLabels.forEach { (key, label) ->
+                    ThemeOption(label, key, fontChoice, onFontChoiceChange)
+                }
             }
-            Spacer(Modifier.height(24.dp))
+
+            Spacer(Modifier.height(16.dp))
             Text("فاصله خطوط متن", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
             var lineSpacing by remember { mutableStateOf(Prefs.getLineSpacing(context)) }
@@ -241,28 +247,29 @@ fun SettingsScreen(
                 LineSpacingOption("معمولی", 1.4f, lineSpacing) { lineSpacing = it; Prefs.setLineSpacing(context, it) }
                 LineSpacingOption("بازتر", 1.8f, lineSpacing) { lineSpacing = it; Prefs.setLineSpacing(context, it) }
             }
-            Spacer(Modifier.height(24.dp))
-            Text("تم رنگی", style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOption("طلایی", "default", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFFD4A94A))
-                ThemeOption("سبز", "green", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFF3E8E5A))
-                ThemeOption("قرمز", "red", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFFA33B3B))
-            }
 
-            Spacer(Modifier.height(24.dp))
-            Text("فونت متن", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(16.dp))
+            Text("پیش‌نمایش تغییرات", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            val previewFontFamily = com.example.bookapp.ui.theme.FontChoices[fontChoice]
+                ?: com.example.bookapp.ui.theme.FontChoices["titr"]!!
+            val previewFontSize = 18f * fontScale.coerceIn(0.8f, 2.0f)
+            val previewLineHeight = previewFontSize * lineSpacing
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
             ) {
-                com.example.bookapp.ui.theme.FontChoiceLabels.forEach { (key, label) ->
-                    ThemeOption(label, key, fontChoice, onFontChoiceChange)
-                }
+                Text(
+                    "نمونه متن تعزیه: این نوشته برای مشاهده هم‌زمان اندازه فونت، نوع فونت و فاصله خطوط است. با تغییر هر گزینه، این پیش‌نمایش نیز بلافاصله تغییر می‌کند.",
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = previewFontFamily,
+                        fontSize = previewFontSize.sp,
+                        lineHeight = previewLineHeight.sp
+                    )
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -278,6 +285,18 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             ChangePasswordSection()
+
+            Spacer(Modifier.height(24.dp))
+            Text("تم رنگی", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemeOption("طلایی", "default", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFFD4A94A))
+                ThemeOption("سبز", "green", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFF3E8E5A))
+                ThemeOption("قرمز", "red", themeChoice, onThemeChoiceChange, androidx.compose.ui.graphics.Color(0xFFA33B3B))
+            }
 
             Spacer(Modifier.height(32.dp))
             HorizontalDivider()
