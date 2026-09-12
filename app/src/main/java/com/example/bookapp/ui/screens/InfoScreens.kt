@@ -188,6 +188,23 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("روشن نگه‌داشتن صفحه", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "صفحه گوشی حین استفاده از برنامه خاموش/قفل نشود",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = keepScreenOn, onCheckedChange = onKeepScreenOnChange)
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             Text("سایز متن", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
@@ -212,16 +229,6 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(12.dp)
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("کوچک", style = MaterialTheme.typography.bodySmall)
-                Text("متوسط", style = MaterialTheme.typography.bodySmall)
-                Text("بزرگ", style = MaterialTheme.typography.bodySmall)
-                Text("خیلی بزرگ", style = MaterialTheme.typography.bodySmall)
-            }
-
             Spacer(Modifier.height(24.dp))
             Text("فاصله خطوط متن", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
@@ -234,15 +241,6 @@ fun SettingsScreen(
                 LineSpacingOption("معمولی", 1.4f, lineSpacing) { lineSpacing = it; Prefs.setLineSpacing(context, it) }
                 LineSpacingOption("بازتر", 1.8f, lineSpacing) { lineSpacing = it; Prefs.setLineSpacing(context, it) }
             }
-            Spacer(Modifier.height(8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Text(
-                    "این یک متن نمونه است تا فاصله‌ی خطوط را همین‌جا ببینید.\nخط دوم نمونه برای مقایسه فاصله با خط بالا.",
-                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = MaterialTheme.typography.bodyLarge.fontSize * lineSpacing),
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-
             Spacer(Modifier.height(24.dp))
             Text("تم رنگی", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
@@ -266,6 +264,20 @@ fun SettingsScreen(
                     ThemeOption(label, key, fontChoice, onFontChoiceChange)
                 }
             }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
+            Text("تغییر رمز عبور", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "اگر رمزی تنظیم نکنید، ورود به برنامه بدون رمز آزاد خواهد بود.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            ChangePasswordSection()
 
             Spacer(Modifier.height(32.dp))
             HorizontalDivider()
@@ -345,37 +357,6 @@ fun SettingsScreen(
                             }
 
             }
-
-            Spacer(Modifier.height(24.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("روشن نگه‌داشتن صفحه", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "صفحه گوشی حین استفاده از برنامه خاموش/قفل نشود",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(checked = keepScreenOn, onCheckedChange = onKeepScreenOnChange)
-            }
-
-            Spacer(Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
-
-            Text("تغییر رمز عبور", style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "اگر رمزی تنظیم نکنید، ورود به برنامه بدون رمز آزاد خواهد بود.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            ChangePasswordSection()
 
             Spacer(Modifier.height(32.dp))
             HorizontalDivider()
