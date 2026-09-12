@@ -24,7 +24,7 @@ object ContentProtectionHelper {
     // For stronger confidentiality than local APK protection, move the content key
     // to a server-side provisioning system in a future stage.
     private val key: ByteArray by lazy {
-        val material = listOf("Tz9!", "ieh#", "2026", "Viewer$Protection", "Fa").joinToString("")
+        val material = listOf("Tz9!", "ieh#", "2026", "Viewer-Protection", "Fa").joinToString("")
         MessageDigest.getInstance("SHA-256").digest(material.toByteArray(Charsets.UTF_8))
     }
 
