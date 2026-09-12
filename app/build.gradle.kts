@@ -42,6 +42,19 @@ android {
     }
     compileSdk = 34
 
+    // The Viewer keeps its protected content in src/viewer/assets.
+    // Explicitly attach that directory to the viewer flavor so encrypted .taz
+    // files are packaged into the Viewer APK under assets/content/.
+    sourceSets {
+        getByName("viewer") {
+            assets.srcDir("src/viewer/assets")
+        }
+        getByName("admin") {
+            assets.srcDir("src/admin/assets")
+        }
+    }
+
+
     // شماره نسخه/برچسب هر build را از تاریخچه Git می‌سازد تا هر build برچسب
     // منحصربه‌فرد و قابل‌ردیابی داشته باشد؛ اگر پروژه از حالت git checkout نشده باشد
     // (مثلاً از یک فایل zip استخراج شده)، به مقدار ثابت پیش‌فرض برمی‌گردد تا build نشکند.

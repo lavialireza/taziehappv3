@@ -203,7 +203,6 @@ suspend fun syncLocalContentFiles(context: Context, db: AppDatabase): Int {
     }
     Prefs.setProcessedContentFiles(context, allFiles.map { it.key }.toSet())
 
-    if (hadContentBefore) showNewContentNotification(context, newOrChangedFiles.size)
     return newOrChangedFiles.size
 }
 
