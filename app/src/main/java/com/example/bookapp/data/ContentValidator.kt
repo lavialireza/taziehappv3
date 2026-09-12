@@ -22,7 +22,7 @@ object ContentValidator {
                 errors += "Field شماره $fi معتبر نیست"
                 continue
             }
-            requireUid(f, "Field", fi, fieldUids, errors)
+            validateOptionalUid(f, "Field", fieldUids, errors)
             if (f.optString("title").isBlank()) errors += "Field شماره $fi عنوان ندارد"
 
             val taziehs = f.optJSONArray("taziehs")
@@ -36,7 +36,7 @@ object ContentValidator {
                     errors += "Tazieh $fi/$ti معتبر نیست"
                     continue
                 }
-                requireUid(t, "Tazieh", ti, taziehUids, errors)
+                validateOptionalUid(t, "Tazieh", taziehUids, errors)
 
                 val roles = t.optJSONArray("roles")
                 if (roles == null) {
@@ -49,7 +49,7 @@ object ContentValidator {
                         errors += "Role $fi/$ti/$ri معتبر نیست"
                         continue
                     }
-                    requireUid(r, "Role", ri, roleUids, errors)
+                    validateOptionalUid(r, "Role", roleUids, errors)
 
                     val sections = r.optJSONArray("sections")
                     if (sections == null) {
@@ -62,8 +62,8 @@ object ContentValidator {
                             errors += "Section $fi/$ti/$ri/$si معتبر نیست"
                             continue
                         }
-                        requireUid(s, "Section", si, sectionUids, errors)
-                        if (!s.has("content")) errors += "Section ${s.optString("uid")} فیلد content ندارد"
+                        validateOptionalUid(s, "Section", sectionUids, errors)
+                        if (!s.has("content")) errors += "Section ${s.optString("uid", "")} فیلد content ندارد"
                     }
                 }
             }
@@ -71,15 +71,20 @@ object ContentValidator {
         return errors
     }
 
-    private fun requireUid(
+    /**
+     * UIDs are optional because the public/external content schema intentionally
+     * contains only title/taziehs/roles/sections/content. When a UID is supplied
+     * by an internal content package, still validate its uniqueness.
+     */
+    private fun validateOptionalUid(
         obj: JSONObject,
         kind: String,
-        index: Int,
         seen: MutableSet<String>,
         errors: MutableList<String>
     ) {
         val uid = obj.optString("uid").trim()
-        if (uid.isBlank()) errors += "$kind شماره $index فاقد uid است"
-        else if (!seen.add(uid)) errors += "$kind دارای uid تکراری است: $uid"
+        if (uid.isNotBlank() && !seen.add(uid)) {
+            errors += "$kind دارای uid تکراری است: $uid"
+        }
     }
 }

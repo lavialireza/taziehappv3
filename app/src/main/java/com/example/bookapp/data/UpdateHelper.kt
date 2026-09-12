@@ -42,11 +42,16 @@ object UpdateHelper {
                     val match = Regex("^apk-build-(\\d+)$").find(tag) ?: continue
                     val buildNumber = match.groupValues[1].toIntOrNull() ?: continue
                     val assets = release.optJSONArray("assets") ?: continue
+                    val expectedAssetName = if (com.example.bookapp.BuildConfig.PUBLIC_VIEWER) {
+                        "app-viewer-debug.apk"
+                    } else {
+                        "app-admin-debug.apk"
+                    }
                     var apkUrl: String? = null
                     for (j in 0 until assets.length()) {
                         val asset = assets.getJSONObject(j)
                         val name = asset.optString("name")
-                        if (name == if (currentVersionCode >= 0) "app-viewer-debug.apk" else "app-viewer-debug.apk") {
+                        if (name == expectedAssetName) {
                             apkUrl = asset.optString("browser_download_url").takeIf { it.isNotBlank() }
                             break
                         }
