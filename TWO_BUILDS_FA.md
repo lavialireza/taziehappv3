@@ -1,19 +1,14 @@
-# دو نوع Build برنامه تعزیه و شبیه‌خوانی
+# دو نوع Build: مدیر و کاربر
 
-این پروژه اکنون دو Product Flavor مستقل دارد:
+این پروژه دو APK مستقل می‌سازد:
 
-- `admin`: نسخه مدیر، Application ID = `com.example.bookapp`
-- `viewer`: نسخه کاربر، Application ID = `com.example.bookapp.viewer`
+- Admin: `com.example.bookapp` — دسترسی کامل مدیریت محتوا
+- Viewer: `com.example.bookapp.viewer` — فقط مشاهده
 
-## خروجی GitHub Actions
+Workflow:
+- `gradle assembleAdminDebug`
+- `gradle assembleViewerDebug`
 
-Workflow دو APK می‌سازد:
+هر دو APK به‌صورت Artifact و GitHub Release منتشر می‌شوند.
 
-- `app-admin-debug.apk` — نسخه مدیر
-- `app-viewer-debug.apk` — نسخه کاربر فقط مشاهده
-
-## نسخه کاربر
-
-در Viewer منوی مدیریت محتوا و بروزرسانی محتوای آنلاین غیرفعال/مخفی است و اجرای مسیر مدیریت محتوا نیز از Navigation محافظت شده است. همچنین `FLAG_SECURE` برای جلوگیری از Screenshot/Screen Recording فعال است و Backup سیستم‌عامل در Manifest خاموش است.
-
-این محافظت UI و سطح دسترسی داخل APK است و در برابر Root یا مهندسی معکوس تضمین ۱۰۰٪ برای مخفی ماندن محتوای خام ایجاد نمی‌کند.
+در نسخه Viewer، محتوای داخلی همراه APK فقط برای نمایش در برنامه بارگذاری می‌شود و مسیرهای مدیریت محتوا، ورود JSON/Word و ابزارهای ویرایش در دسترس نیستند.
