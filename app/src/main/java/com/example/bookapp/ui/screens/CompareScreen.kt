@@ -94,7 +94,7 @@ fun CompareScreen(
 
 @Composable
 private fun CompareRoleColumns(roleA: RoleEntity, roleB: RoleEntity, sectionsA: List<SectionEntity>, sectionsB: List<SectionEntity>) {
-    Column(Modifier.fillMaxWidth().weight(1f)) {
+    Column(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(8.dp)) {
             Text(roleA.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             sectionsA.forEach { section ->
@@ -117,7 +117,7 @@ private fun CompareRoleColumns(roleA: RoleEntity, roleB: RoleEntity, sectionsA: 
 
 @Composable
 private fun CompareSectionColumns(a: CompareSectionItem, b: CompareSectionItem) {
-    Row(Modifier.fillMaxWidth().weight(1f)) {
+    Row(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(8.dp)) {
             Text(a.roleTitle, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             Text(a.section.title, style = MaterialTheme.typography.titleMedium)

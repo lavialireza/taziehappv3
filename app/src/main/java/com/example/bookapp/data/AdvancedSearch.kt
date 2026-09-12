@@ -86,7 +86,7 @@ object AdvancedSearchEngine {
             .filter { options.taziehId == null || it.taziehId == options.taziehId }
             .filter { options.roleId == null || it.roleId == options.roleId }
             .filter { options.sectionId == null || it.sectionId == options.sectionId }
-            .mapNotNull { row -> scoreRow(row, normalizedQuery, tokens, options.matchMode) }
+            .mapNotNull { row -> scoreRow(row, normalizedQuery, tokens, options.matchMode, options) }
             .toList()
 
         val sorted = when (options.sortMode) {
@@ -111,7 +111,8 @@ object AdvancedSearchEngine {
         row: SearchCorpusRow,
         query: String,
         tokens: List<String>,
-        mode: SearchMatchMode
+        mode: SearchMatchMode,
+        options: AdvancedSearchOptions
     ): AdvancedSearchResult? {
         val title = normalizeSearchText(row.sectionTitle)
         val content = normalizeSearchText(row.content)
