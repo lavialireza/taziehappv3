@@ -16,35 +16,101 @@ jobs:
       - name: دریافت کد پروژه
         uses: actions/checkout@v5
 
-      - name: نصب Java
+      - name: نصب Java 17
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
-      - name: نصب Gradle
+      # این پروژه Gradle Wrapper ندارد؛ بنابراین باید نسخه Gradle صریحاً نصب شود.
+      # AGP 8.4.0 به Gradle 8.6 نیاز دارد.
+      - name: نصب Gradle 8.6
         uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "8.6"
 
-      - name: ساخت APK (Debug)
-        run: gradle assembleDebug
+      - name: بررسی نسخه Gradle
+        run: gradle --version
 
-      - name: بارگذاری APK به‌عنوان خروجی قابل دانلود
+      - name: ساخت APK مدیر
+        run: gradle assembleAdminDebug --stacktrace --warning-mode all
+
+      - name: ساخت APK کاربر (فقط مشاهده)
+        run: gradle assembleViewerDebug --stacktrace --warning-mode all
+
+      - name: بارگذاری گزارش Build در صورت خطا
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: build-reports
+          path: |
+            **/build/reports/**
+            **/build/outputs/logs/**
+          if-no-files-found: ignore
+
+      - name: یافتن APKهای ساخته‌شده
+        if: success()
+        id: apk_paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN_APK="$(find app/build/outputs/apk -type f -name 'app-admin-debug.apk' -print -quit)"
+          VIEWER_APK="$(find app/build/outputs/apk -type f -name 'app-viewer-debug.apk' -print -quit)"
+          test -n "$ADMIN_APK"
+          test -n "$VIEWER_APK"
+          echo "admin=$ADMIN_APK" >> "$GITHUB_OUTPUT"
+          echo "viewer=$VIEWER_APK" >> "$GITHUB_OUTPUT"
+          echo "Admin APK: $ADMIN_APK"
+          echo "Viewer APK: $VIEWER_APK"
+
+      - name: بارگذاری APK مدیر
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tazieh-admin-debug-apk
+          path: ${{ steps.apk_paths.outputs.admin }}
+          if-no-files-found: error
           retention-days: 30
 
-      - name: انتشار APK در GitHub Release
+      - name: بارگذاری APK کاربر
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tazieh-viewer-debug-apk
+          path: ${{ steps.apk_paths.outputs.viewer }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: انتشار هر دو APK در GitHub Release
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           TAG="apk-build-${GITHUB_RUN_NUMBER}"
 
+          ADMIN_APK="$(find "$GITHUB_WORKSPACE/app/build/outputs/apk" -type f -name 'app-admin-debug.apk' -print -quit)"
+          VIEWER_APK="$(find "$GITHUB_WORKSPACE/app/build/outputs/apk" -type f -name 'app-viewer-debug.apk' -print -quit)"
+
+          if [ -z "$ADMIN_APK" ]; then
+            echo "ERROR: Admin APK not found."
+            find "$GITHUB_WORKSPACE/app/build/outputs/apk" -type f -name '*.apk' -print || true
+            exit 1
+          fi
+
+          if [ -z "$VIEWER_APK" ]; then
+            echo "ERROR: Viewer APK not found."
+            find "$GITHUB_WORKSPACE/app/build/outputs/apk" -type f -name '*.apk' -print || true
+            exit 1
+          fi
+
+          echo "Publishing Admin APK: $ADMIN_APK"
+          echo "Publishing Viewer APK: $VIEWER_APK"
+
           gh release create "$TAG" \
-            app/build/outputs/apk/debug/app-debug.apk \
+            "$ADMIN_APK" \
+            "$VIEWER_APK" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "APK Debug Build #${GITHUB_RUN_NUMBER}" \
-            --notes "Automatic debug APK build from commit ${GITHUB_SHA}." \
+            --title "Tazieh Android — مدیر و کاربر #${GITHUB_RUN_NUMBER}" \
+            --notes "دو APK مستقل: مدیر و کاربر (فقط مشاهده)." \
             --prerelease
