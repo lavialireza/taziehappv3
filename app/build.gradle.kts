@@ -86,7 +86,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // انتشار واقعی: کد Viewer در Release با R8 کوچک‌سازی و مبهم‌سازی می‌شود.
+            isMinifyEnabled = true
+            isShrinkResources = true
             // اگر کلید امضا تنظیم نشده باشد (مثلاً روی CI بدون secret)، بدون امضا
             // ساخته می‌شود تا Build نشکند؛ چنین APK ای فقط برای تست داخلی قابل‌نصب است،
             // نه انتشار در فروشگاه. برای انتشار واقعی، local.properties را طبق
@@ -94,6 +96,7 @@ android {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 

@@ -213,6 +213,9 @@ suspend fun syncRemoteContent(
     db: AppDatabase,
     url: String = "https://raw.githubusercontent.com/lavialireza/tazeahappv-1/main/app/src/main/assets/content/001_sample.json"
 ): Result<Unit> {
+    if (com.example.bookapp.BuildConfig.PUBLIC_VIEWER) {
+        return Result.failure(IllegalStateException("نسخه عمومی اجازه دریافت محتوای آنلاین را ندارد"))
+    }
     return try {
         val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { withHttpGet(url) }
         val errors = ContentValidator.validate(jsonText)
