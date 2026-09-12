@@ -63,7 +63,8 @@ fun TaziehIndexScreen(
     onExportPdf: () -> Unit,
     onRename: (TaziehIndexItem, String) -> Unit,
     onMove: (index: Int, direction: Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    readOnly: Boolean = false
 ) {
     val sorted = remember(items) { sortTaziehIndexItems(items) }
     var editingItem by remember { mutableStateOf<TaziehIndexItem?>(null) }
@@ -79,8 +80,10 @@ fun TaziehIndexScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onExportPdf) {
-                        Icon(Icons.Filled.Share, contentDescription = "خروجی PDF کل تعزیه")
+                    if (!readOnly) {
+                        IconButton(onClick = onExportPdf) {
+                            Icon(Icons.Filled.Share, contentDescription = "خروجی PDF کل تعزیه")
+                        }
                     }
                 }
             )
@@ -128,26 +131,28 @@ fun TaziehIndexScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = {
-                            editingItem = item
-                            editingText = item.roleTitle
-                        }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "ویرایش نام نقش")
-                        }
-                        Column {
-                            IconButton(
-                                onClick = { onMove(index, -1) },
-                                enabled = index > 0,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "جابه‌جایی به بالا")
+                        if (!readOnly) {
+                            IconButton(onClick = {
+                                editingItem = item
+                                editingText = item.roleTitle
+                            }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "ویرایش نام نقش")
                             }
-                            IconButton(
-                                onClick = { onMove(index, 1) },
-                                enabled = index < sorted.size - 1,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "جابه‌جایی به پایین")
+                            Column {
+                                IconButton(
+                                    onClick = { onMove(index, -1) },
+                                    enabled = index > 0,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "جابه‌جایی به بالا")
+                                }
+                                IconButton(
+                                    onClick = { onMove(index, 1) },
+                                    enabled = index < sorted.size - 1,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "جابه‌جایی به پایین")
+                                }
                             }
                         }
                     }

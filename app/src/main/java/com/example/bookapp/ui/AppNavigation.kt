@@ -337,7 +337,8 @@ fun AppNavigation(
                     Prefs.clearMyRole(context, item.taziehId)
                     scope.launch { reloadMyRoles() }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                readOnly = publicViewer
             )
         }
 
@@ -780,7 +781,7 @@ fun AppNavigation(
             )
         }
 
-        if (!publicViewer) composable(ROUTE_TAZIEHS) { backStackEntry ->
+        composable(ROUTE_TAZIEHS) { backStackEntry ->
             val fieldId = backStackEntry.arguments?.getString("fieldId")?.toLongOrNull() ?: 0L
             var catalog by remember { mutableStateOf(emptyList<TaziehCatalogItem>()) }
             LaunchedEffect(fieldId) {
@@ -800,7 +801,7 @@ fun AppNavigation(
             )
         }
 
-        if (!publicViewer) composable(ROUTE_ROLES) { backStackEntry ->
+        composable(ROUTE_ROLES) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
             var roles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
@@ -837,7 +838,8 @@ fun AppNavigation(
                     val other = roleItems.firstOrNull { it.id != item.id }
                     if (other != null) navController.navigate("compare/${item.id}/${other.id}")
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                readOnly = publicViewer
             )
         }
 
@@ -903,7 +905,7 @@ fun AppNavigation(
             )
         }
 
-        if (!publicViewer) composable(ROUTE_DIALOGUES) { backStackEntry ->
+        composable(ROUTE_DIALOGUES) { backStackEntry ->
             val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
             val taziehTitle = backStackEntry.arguments?.getString("taziehTitle") ?: ""
             var dialogues by remember { mutableStateOf(listOf<DialogueSummary>()) }
@@ -929,7 +931,8 @@ fun AppNavigation(
                         reloadDialogues()
                     }
                 },
-                onCreateNew = { navController.navigate("dialogue_builder/$taziehId/$taziehTitle") },
+                onCreateNew = { if (!publicViewer) navController.navigate("dialogue_builder/$taziehId/$taziehTitle") },
+                readOnly = publicViewer,
                 onBack = { navController.popBackStack() }
             )
         }
@@ -1026,9 +1029,10 @@ fun AppNavigation(
                         com.example.bookapp.data.exportDialogueToPdf(context, dialogueTitle, triples)
                     }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                readOnly = publicViewer
             )
-            if (showAddTurn) {
+            if (showAddTurn && !publicViewer) {
                 var chosen by remember { mutableStateOf<SectionPickerItem?>(null) }
                 AlertDialog(
                     onDismissRequest = { showAddTurn = false },
@@ -1123,7 +1127,7 @@ fun AppNavigation(
             )
         }
 
-        if (!publicViewer) composable(ROUTE_SECTIONS) { backStackEntry ->
+        composable(ROUTE_SECTIONS) { backStackEntry ->
             val roleId = backStackEntry.arguments?.getString("roleId")?.toLongOrNull() ?: 0L
             val roleTitle = backStackEntry.arguments?.getString("roleTitle") ?: ""
             var items by remember { mutableStateOf(listOf<ListItemData>()) }
@@ -1146,17 +1150,19 @@ fun AppNavigation(
                             icon = { androidx.compose.material3.Icon(Icons.Filled.School, contentDescription = null) },
                             onClick = { navController.navigate("rehearsal/$roleId/$roleTitle") }
                         )
-                        Spacer(Modifier.height(10.dp))
-                        androidx.compose.material3.ExtendedFloatingActionButton(
-                            text = { androidx.compose.material3.Text("خروجی PDF") },
-                            icon = { androidx.compose.material3.Icon(Icons.Filled.Share, contentDescription = null) },
-                            onClick = {
-                                scope.launch {
-                                    val fullSections = db.sectionDao().getByRole(roleId)
-                                    com.example.bookapp.data.exportRoleToPdf(context, roleTitle, fullSections)
+                        if (!publicViewer) {
+                            Spacer(Modifier.height(10.dp))
+                            androidx.compose.material3.ExtendedFloatingActionButton(
+                                text = { androidx.compose.material3.Text("خروجی PDF") },
+                                icon = { androidx.compose.material3.Icon(Icons.Filled.Share, contentDescription = null) },
+                                onClick = {
+                                    scope.launch {
+                                        val fullSections = db.sectionDao().getByRole(roleId)
+                                        com.example.bookapp.data.exportRoleToPdf(context, roleTitle, fullSections)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             )

@@ -174,9 +174,18 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 suspend fun syncLocalContentFiles(context: Context, db: AppDatabase): Int {
-    val names = context.assets.list("content")?.filter { it.endsWith(".json") && it != "manifest.json" }?.sorted() ?: emptyList()
+    val isProtectedViewer = com.example.bookapp.BuildConfig.PUBLIC_VIEWER
+    val names = context.assets.list("content")
+        ?.filter { name ->
+            if (isProtectedViewer) name.endsWith(".taz") else name.endsWith(".json") && name != "manifest.json"
+        }
+        ?.sorted() ?: emptyList()
     val allFiles = names.map { name ->
-        val text = context.assets.open("content/$name").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val text = if (isProtectedViewer) {
+            ContentProtectionHelper.readProtectedJson(context, name)
+        } else {
+            context.assets.open("content/$name").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
         FileWithKey(name, text, "$name:${sha256(text)}", "")
     }
 

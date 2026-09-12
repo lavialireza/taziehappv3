@@ -30,7 +30,8 @@ fun ProfessionalRoleScreen(
     onOpen: (ProfessionalRoleItem) -> Unit,
     onSetMine: (ProfessionalRoleItem) -> Unit,
     onCompare: (ProfessionalRoleItem) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    readOnly: Boolean = false
 ) {
     var query by remember { mutableStateOf("") }
     val filtered = items.filter { normalizePersianSearch(it.title).contains(normalizePersianSearch(query)) }

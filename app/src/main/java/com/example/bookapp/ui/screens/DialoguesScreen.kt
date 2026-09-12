@@ -27,7 +27,8 @@ fun DialoguesScreen(
     onEditDialogue: (DialogueSummary, String) -> Unit,
     onDeleteDialogue: (DialogueSummary) -> Unit,
     onCreateNew: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    readOnly: Boolean = false
 ) {
     var editTarget by remember { mutableStateOf<DialogueSummary?>(null) }
     var editTitle by remember { mutableStateOf("") }
@@ -36,7 +37,11 @@ fun DialoguesScreen(
         topBar = { TopAppBar(title = { Text("گفتگوها: $taziehTitle") }, navigationIcon = {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "بازگشت") }
         }) },
-        floatingActionButton = { ExtendedFloatingActionButton(text = { Text("گفتگوی جدید") }, icon = { Icon(Icons.Filled.Add, null) }, onClick = onCreateNew) }
+        floatingActionButton = {
+            if (!readOnly) {
+                ExtendedFloatingActionButton(text = { Text("گفتگوی جدید") }, icon = { Icon(Icons.Filled.Add, null) }, onClick = onCreateNew)
+            }
+        }
     ) { padding ->
         if (dialogues.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding).padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -51,8 +56,10 @@ fun DialoguesScreen(
                             Text(dialogue.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text("${dialogue.turnsCount} نوبت", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        IconButton(onClick = { editTarget = dialogue; editTitle = dialogue.title }) { Icon(Icons.Filled.Edit, "ویرایش نام") }
-                        IconButton(onClick = { deleteTarget = dialogue }) { Icon(Icons.Filled.Delete, "حذف گفتگو") }
+                        if (!readOnly) {
+                            IconButton(onClick = { editTarget = dialogue; editTitle = dialogue.title }) { Icon(Icons.Filled.Edit, "ویرایش نام") }
+                            IconButton(onClick = { deleteTarget = dialogue }) { Icon(Icons.Filled.Delete, "حذف گفتگو") }
+                        }
                     }
                 }
             }

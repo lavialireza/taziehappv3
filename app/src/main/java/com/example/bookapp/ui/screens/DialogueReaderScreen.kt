@@ -40,7 +40,8 @@ fun DialogueReaderScreen(
     onDeleteTurn: (DialogueTurnDisplay) -> Unit,
     onAddTurn: () -> Unit = {},
     onExportPdf: () -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    readOnly: Boolean = false
 ) {
     Scaffold(
         topBar = {
@@ -52,11 +53,15 @@ fun DialogueReaderScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onAddTurn) {
-                        Icon(Icons.Filled.Add, contentDescription = "افزودن نوبت")
+                    if (!readOnly) {
+                        IconButton(onClick = onAddTurn) {
+                            Icon(Icons.Filled.Add, contentDescription = "افزودن نوبت")
+                        }
                     }
-                    IconButton(onClick = onExportPdf) {
-                        Icon(Icons.Filled.Share, contentDescription = "خروجی PDF گفتگو")
+                    if (!readOnly) {
+                        IconButton(onClick = onExportPdf) {
+                            Icon(Icons.Filled.Share, contentDescription = "خروجی PDF گفتگو")
+                        }
                     }
                 }
             )
@@ -102,15 +107,17 @@ fun DialogueReaderScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Row {
-                                IconButton(onClick = { onMoveTurn(index, -1) }, enabled = index > 0) {
-                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "جابه‌جایی به بالا")
-                                }
-                                IconButton(onClick = { onMoveTurn(index, 1) }, enabled = index < turns.size - 1) {
-                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "جابه‌جایی به پایین")
-                                }
-                                IconButton(onClick = { onDeleteTurn(turn) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "حذف این نوبت از گفتگو")
+                            if (!readOnly) {
+                                Row {
+                                    IconButton(onClick = { onMoveTurn(index, -1) }, enabled = index > 0) {
+                                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "جابه‌جایی به بالا")
+                                    }
+                                    IconButton(onClick = { onMoveTurn(index, 1) }, enabled = index < turns.size - 1) {
+                                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "جابه‌جایی به پایین")
+                                    }
+                                    IconButton(onClick = { onDeleteTurn(turn) }) {
+                                        Icon(Icons.Filled.Delete, contentDescription = "حذف این نوبت از گفتگو")
+                                    }
                                 }
                             }
                         }
