@@ -121,7 +121,11 @@ fun AppNavigation(
         // محتوای همراه APK برای هر دو build بارگذاری می‌شود؛ این مسیر فقط assets
         // داخلی برنامه را می‌خواند و در نسخه عمومی هیچ ابزار ورود/ویرایش در اختیار کاربر نیست.
         val isReturningUser = Prefs.getProcessedContentFiles(context).isNotEmpty()
-        val newFilesCount = syncLocalContentFiles(context, db)
+        val syncResult = runCatching { syncLocalContentFiles(context, db) }
+        val newFilesCount = syncResult.getOrElse { error ->
+            android.util.Log.e("TaziehContent", "خطا در بارگذاری محتوای همراه برنامه", error)
+            0
+        }
         if (!publicViewer && isReturningUser && newFilesCount > 0) {
             com.example.bookapp.data.showNewContentNotification(context, newFilesCount)
         }
