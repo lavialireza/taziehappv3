@@ -42,6 +42,13 @@ data class AdvancedSearchOptions(
     val fieldId: Long? = null,
     val taziehId: Long? = null,
     val roleId: Long? = null,
+    val sectionId: Long? = null,
+    val inSectionTitle: Boolean = true,
+    val inText: Boolean = true,
+    val inRole: Boolean = true,
+    val inTazieh: Boolean = true,
+    val inField: Boolean = true,
+    val inFootnote: Boolean = true,
     val sortMode: SearchSortMode = SearchSortMode.RELEVANCE
 )
 
@@ -78,6 +85,7 @@ object AdvancedSearchEngine {
             .filter { options.fieldId == null || it.fieldId == options.fieldId }
             .filter { options.taziehId == null || it.taziehId == options.taziehId }
             .filter { options.roleId == null || it.roleId == options.roleId }
+            .filter { options.sectionId == null || it.sectionId == options.sectionId }
             .mapNotNull { row -> scoreRow(row, normalizedQuery, tokens, options.matchMode) }
             .toList()
 
@@ -111,7 +119,16 @@ object AdvancedSearchEngine {
         val tazieh = normalizeSearchText(row.taziehTitle)
         val field = normalizeSearchText(row.fieldTitle)
         val footnotes = normalizeSearchText(row.footnotesText.orEmpty())
-        val allText = listOf(title, content, role, tazieh, field, footnotes).joinToString(" ")
+        val scoped = buildList {
+            if (options.inSectionTitle) add(title)
+            if (options.inText) add(content)
+            if (options.inRole) add(role)
+            if (options.inTazieh) add(tazieh)
+            if (options.inField) add(field)
+            if (options.inFootnote) add(footnotes)
+        }
+        val allText = scoped.joinToString(" ")
+        if (allText.isBlank()) return null
 
         val matches = when (mode) {
             SearchMatchMode.EXACT_PHRASE -> allText.contains(query)
@@ -121,29 +138,30 @@ object AdvancedSearchEngine {
         if (!matches) return null
 
         var score = 0
-        if (title.contains(query)) score += 1200
-        if (content.contains(query)) score += 700
-        if (role.contains(query)) score += 500
-        if (tazieh.contains(query)) score += 450
-        if (field.contains(query)) score += 350
-        if (footnotes.contains(query)) score += 250
+        if (options.inSectionTitle && title.contains(query)) score += 1200
+        if (options.inText && content.contains(query)) score += 700
+        if (options.inRole && role.contains(query)) score += 500
+        if (options.inTazieh && tazieh.contains(query)) score += 450
+        if (options.inField && field.contains(query)) score += 350
+        if (options.inFootnote && footnotes.contains(query)) score += 250
         tokens.forEach { token ->
-            if (title.contains(token)) score += 120
-            if (content.contains(token)) score += 40
-            if (role.contains(token)) score += 60
-            if (tazieh.contains(token)) score += 50
-            if (field.contains(token)) score += 35
-            if (footnotes.contains(token)) score += 25
+            if (options.inSectionTitle && title.contains(token)) score += 120
+            if (options.inText && content.contains(token)) score += 40
+            if (options.inRole && role.contains(token)) score += 60
+            if (options.inTazieh && tazieh.contains(token)) score += 50
+            if (options.inField && field.contains(token)) score += 35
+            if (options.inFootnote && footnotes.contains(token)) score += 25
         }
         if (mode == SearchMatchMode.EXACT_PHRASE) score += 300
 
         val source = when {
-            title.contains(query) -> "عنوان بخش"
-            content.contains(query) -> "متن"
-            footnotes.contains(query) -> "پانویس"
-            role.contains(query) -> "نقش"
-            tazieh.contains(query) -> "تعزیه"
-            else -> "زمینه"
+            options.inSectionTitle && title.contains(query) -> "عنوان بخش"
+            options.inText && content.contains(query) -> "متن"
+            options.inFootnote && footnotes.contains(query) -> "پانویس"
+            options.inRole && role.contains(query) -> "نقش"
+            options.inTazieh && tazieh.contains(query) -> "تعزیه"
+            options.inField && field.contains(query) -> "زمینه"
+            else -> "متن انتخاب‌شده"
         }
         return AdvancedSearchResult(
             sectionId = row.sectionId,

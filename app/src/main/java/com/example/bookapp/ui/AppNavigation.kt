@@ -93,7 +93,7 @@ private const val ROUTE_DIALOGUE_READER = "dialogue_reader/{dialogueId}"
 private const val ROUTE_TAZIEH_GALLERY = "tazieh_gallery/{taziehId}/{taziehTitle}"
 private const val ROUTE_TEXT = "text/{sectionId}"
 private const val ROUTE_TEXT_PAGER = "text_pager/{roleId}/{startIndex}"
-private const val ROUTE_COMPARE = "compare/{roleAId}/{roleBId}"
+private const val ROUTE_COMPARE = "compare/{taziehId}"
 
 @Composable
 fun AppNavigation(
@@ -233,18 +233,21 @@ fun AppNavigation(
             var fields by remember { mutableStateOf(listOf<com.example.bookapp.data.FieldEntity>()) }
             var allTaziehs by remember { mutableStateOf(listOf<com.example.bookapp.data.TaziehEntity>()) }
             var allRoles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
+            var allSections by remember { mutableStateOf(listOf<SectionEntity>()) }
             var searchCorpus by remember { mutableStateOf(emptyList<com.example.bookapp.data.SearchCorpusRow>()) }
             var bookmarkedIds by remember { mutableStateOf(Prefs.getBookmarks(context)) }
             LaunchedEffect(Unit) {
                 fields = db.fieldDao().getAll()
                 allTaziehs = db.taziehDao().getAll()
                 allRoles = allTaziehs.flatMap { db.roleDao().getByTazieh(it.id) }
+                allSections = db.sectionDao().getAll()
                 searchCorpus = db.searchDao().getSearchCorpus()
             }
             SearchScreen(
                 fields = fields,
                 allTaziehs = allTaziehs,
                 allRoles = allRoles,
+                allSections = allSections,
                 onSearch = { query, options ->
                     com.example.bookapp.data.AdvancedSearchEngine.search(searchCorpus, query, options)
                 },
@@ -839,10 +842,7 @@ fun AppNavigation(
                     myRoleId = item.id
                     scope.launch { reloadRoles() }
                 },
-                onCompare = { item ->
-                    val other = roleItems.firstOrNull { it.id != item.id }
-                    if (other != null) navController.navigate("compare/${item.id}/${other.id}")
-                },
+                onCompare = { navController.navigate("compare/$taziehId") },
                 onBack = { navController.popBackStack() },
                 readOnly = publicViewer
             )
@@ -1111,23 +1111,26 @@ fun AppNavigation(
         }
 
         composable(ROUTE_COMPARE) { backStackEntry ->
-            val roleAId = backStackEntry.arguments?.getString("roleAId")?.toLongOrNull() ?: 0L
-            val roleBId = backStackEntry.arguments?.getString("roleBId")?.toLongOrNull() ?: 0L
-            var roleATitle by remember { mutableStateOf("") }
-            var roleBTitle by remember { mutableStateOf("") }
-            var roleASections by remember { mutableStateOf(listOf<SectionEntity>()) }
-            var roleBSections by remember { mutableStateOf(listOf<SectionEntity>()) }
-            LaunchedEffect(roleAId, roleBId) {
-                roleASections = db.sectionDao().getByRole(roleAId)
-                roleBSections = db.sectionDao().getByRole(roleBId)
-                roleATitle = db.roleDao().getById(roleAId).title
-                roleBTitle = db.roleDao().getById(roleBId).title
+            val taziehId = backStackEntry.arguments?.getString("taziehId")?.toLongOrNull() ?: 0L
+            var taziehTitle by remember { mutableStateOf("") }
+            var roles by remember { mutableStateOf(listOf<com.example.bookapp.data.RoleEntity>()) }
+            var compareSections by remember { mutableStateOf(listOf<CompareSectionItem>()) }
+            var roleSections by remember { mutableStateOf(emptyMap<Long, List<SectionEntity>>()) }
+            LaunchedEffect(taziehId) {
+                val tazieh = db.taziehDao().getById(taziehId)
+                taziehTitle = tazieh?.title.orEmpty()
+                roles = db.roleDao().getByTazieh(taziehId)
+                val loadedSections = roles.associate { role -> role.id to db.sectionDao().getByRole(role.id) }
+                roleSections = loadedSections
+                compareSections = roles.flatMap { role ->
+                    loadedSections[role.id].orEmpty().map { section -> CompareSectionItem(section, role.title) }
+                }
             }
             CompareScreen(
-                roleATitle = roleATitle.ifBlank { "نقش اول" },
-                roleASections = roleASections,
-                roleBTitle = roleBTitle.ifBlank { "نقش دوم" },
-                roleBSections = roleBSections,
+                taziehTitle = taziehTitle.ifBlank { "تعزیه" },
+                roles = roles,
+                sections = compareSections,
+                roleSections = roleSections,
                 onBack = { navController.popBackStack() }
             )
         }
@@ -1140,6 +1143,10 @@ fun AppNavigation(
             LaunchedEffect(roleId) {
                 items = db.sectionDao().getByRole(roleId).map { ListItemData(it.id, it.title) }
             }
+            var taziehIdForCompare by remember { mutableStateOf<Long?>(null) }
+            LaunchedEffect(roleId) {
+                taziehIdForCompare = db.roleDao().getById(roleId).taziehId
+            }
             GenericListScreen(
                 screenTitle = roleTitle,
                 items = items,
@@ -1148,6 +1155,12 @@ fun AppNavigation(
                     navController.navigate("text_pager/$roleId/$index")
                 },
                 onBack = { navController.popBackStack() },
+                topBarAction = {
+                    TextButton(
+                        onClick = { taziehIdForCompare?.let { navController.navigate("compare/$it") } },
+                        enabled = taziehIdForCompare != null
+                    ) { Text("مقایسه") }
+                },
                 floatingAction = {
                     Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                         androidx.compose.material3.ExtendedFloatingActionButton(
