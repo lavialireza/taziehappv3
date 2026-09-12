@@ -67,6 +67,7 @@ private const val ROUTE_SPLASH = "splash"
 private const val ROUTE_ONBOARDING = "onboarding"
 private const val ROUTE_LOGIN = "login"
 private const val ROUTE_MAIN_MENU = "main_menu"
+private const val ROUTE_VIEWER_CONTENT = "viewer_content"
 private const val ROUTE_SEARCH = "search"
 private const val ROUTE_BOOKMARKS = "bookmarks"
 private const val ROUTE_NOTES = "notes"
@@ -117,12 +118,11 @@ fun AppNavigation(
     val navController: NavHostController = rememberNavController()
 
     LaunchedEffect(Unit) {
-        if (publicViewer) return@LaunchedEffect
-        // نوتیفیکیشن فقط برای کاربرانی که قبلاً برنامه را استفاده کرده‌اند نشان داده
-        // می‌شود؛ در اولین نصب/اجرا محتوای اولیه «تازه» محسوب نمی‌شود
+        // محتوای همراه APK برای هر دو build بارگذاری می‌شود؛ این مسیر فقط assets
+        // داخلی برنامه را می‌خواند و در نسخه عمومی هیچ ابزار ورود/ویرایش در اختیار کاربر نیست.
         val isReturningUser = Prefs.getProcessedContentFiles(context).isNotEmpty()
         val newFilesCount = syncLocalContentFiles(context, db)
-        if (isReturningUser && newFilesCount > 0) {
+        if (!publicViewer && isReturningUser && newFilesCount > 0) {
             com.example.bookapp.data.showNewContentNotification(context, newFilesCount)
         }
     }
@@ -199,7 +199,7 @@ fun AppNavigation(
             MainMenuScreen(
                 randomVerse = randomVerse,
                 recentItems = recentItems,
-                onOpenTaziehList = { navController.navigate(ROUTE_FIELDS) },
+                onOpenTaziehList = { navController.navigate(if (publicViewer) ROUTE_VIEWER_CONTENT else ROUTE_FIELDS) },
                 onOpenSearch = { navController.navigate(ROUTE_SEARCH) },
                 onOpenBookmarks = { navController.navigate(ROUTE_BOOKMARKS) },
                 onOpenNotes = { navController.navigate(ROUTE_NOTES) },
@@ -214,6 +214,14 @@ fun AppNavigation(
                 showContentManagement = !publicViewer,
                 onOpenContentManagement = { if (!publicViewer) navController.navigate(ROUTE_CONTENT_MANAGEMENT) },
                 onItemClick = { result -> navController.navigate("text/${result.sectionId}") }
+            )
+        }
+
+        if (publicViewer) composable(ROUTE_VIEWER_CONTENT) {
+            ViewerContentScreen(
+                db = db,
+                onOpenSection = { sectionId -> navController.navigate("text/$sectionId") },
+                onBack = { navController.popBackStack() }
             )
         }
 
