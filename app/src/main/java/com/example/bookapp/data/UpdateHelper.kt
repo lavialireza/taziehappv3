@@ -25,6 +25,16 @@ object UpdateHelper {
         val isReleaseApk: Boolean
     )
 
+    data class InstalledVersion(val buildNumber: Int, val versionName: String)
+
+    /** نسخه واقعی نصب‌شده را از PackageManager می‌خواند؛ BuildConfig ممکن است
+     * بعد از نصب یک APK جدید تا قبل از راه‌اندازی مجدد پردازش، مقدار قبلی باشد. */
+    fun getInstalledVersion(context: Context): InstalledVersion {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toInt() else info.versionCode
+        return InstalledVersion(code, info.versionName ?: "${code}")
+    }
+
     suspend fun checkForUpdate(currentVersionCode: Int): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         runCatching {
             val connection = (URL(RELEASES_API).openConnection() as HttpURLConnection).apply {
@@ -106,12 +116,20 @@ object UpdateHelper {
             val partialFile = File(updateDir, "tazieh-update-${info.buildNumber}.apk.part")
 
             // فقط فایل نهایی را قابل نصب می‌دانیم؛ فایل .part ممکن است ناقص باشد.
+            // اگر APK ذخیره‌شده دیگر از نسخه نصب‌شده جدیدتر نیست، آن را دوباره نصب نکن.
             if (apkFile.exists() && apkFile.length() > 0L) {
-                onProgress(100)
-                withContext(Dispatchers.Main) {
-                    installApk(context, apkFile)
+                val installed = getInstalledVersion(context)
+                val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                val archiveCode = archiveInfo?.let {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode.toInt() else it.versionCode
                 }
-                return@runCatching
+                val samePackage = archiveInfo?.packageName == context.packageName
+                if (archiveCode != null && samePackage && archiveCode > installed.buildNumber && archiveCode == info.buildNumber) {
+                    onProgress(100)
+                    withContext(Dispatchers.Main) { installApk(context, apkFile) }
+                    return@runCatching
+                }
+                apkFile.delete()
             }
             if (partialFile.exists()) partialFile.delete()
 

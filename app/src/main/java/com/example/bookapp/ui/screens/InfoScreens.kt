@@ -325,11 +325,11 @@ fun SettingsScreen(
                         result.fold(
                             onSuccess = { info ->
                                 if (info == null) {
-                                    appUpdateMessage = "برنامه شما به‌روز است. نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}"
+                                    appUpdateMessage = "برنامه شما به‌روز است. نسخه فعلی: ${com.example.bookapp.data.UpdateHelper.getInstalledVersion(context).versionName}"
                                 } else {
                                     downloadingAppUpdate = true
                                     downloadPercent = 0
-                                    appUpdateMessage = "نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}\nنسخه جدید: ${info.tagName}\nدریافت نسخه جدید داخل برنامه آغاز شد."
+                                    appUpdateMessage = "نسخه فعلی: ${com.example.bookapp.data.UpdateHelper.getInstalledVersion(context).versionName}\nنسخه جدید: ${info.tagName}\nدریافت نسخه جدید داخل برنامه آغاز شد."
                                     val downloadResult = com.example.bookapp.data.UpdateHelper.downloadAndInstall(
                                         context,
                                         info
