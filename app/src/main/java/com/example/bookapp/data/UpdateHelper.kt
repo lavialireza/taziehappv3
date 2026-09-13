@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.content.SharedPreferences
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,8 +17,6 @@ import java.net.URL
 object UpdateHelper {
     private const val REPO = "lavialireza/taziehappv3"
     private const val RELEASES_API = "https://api.github.com/repos/$REPO/releases?per_page=20"
-    private const val PREFS = "tazieh_update_state"
-    private const val KEY_PENDING_BUILD = "pending_build"
 
     data class UpdateInfo(
         val buildNumber: Int,
@@ -30,16 +27,6 @@ object UpdateHelper {
 
     data class InstalledVersion(val buildNumber: Int, val versionName: String)
 
-    private fun prefs(context: Context): SharedPreferences =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-    private fun clearPendingIfInstalled(context: Context, installedBuild: Int) {
-        val pending = prefs(context).getInt(KEY_PENDING_BUILD, -1)
-        if (pending > 0 && installedBuild >= pending) {
-            prefs(context).edit().remove(KEY_PENDING_BUILD).apply()
-        }
-    }
-
     /** نسخه واقعی نصب‌شده را از PackageManager می‌خواند؛ BuildConfig ممکن است
      * بعد از نصب یک APK جدید تا قبل از راه‌اندازی مجدد پردازش، مقدار قبلی باشد. */
     fun getInstalledVersion(context: Context): InstalledVersion {
@@ -48,11 +35,8 @@ object UpdateHelper {
         return InstalledVersion(code, info.versionName ?: "${code}")
     }
 
-    suspend fun checkForUpdate(context: Context, currentVersionCode: Int): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(currentVersionCode: Int): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         runCatching {
-            val installedBuild = getInstalledVersion(context).buildNumber
-            clearPendingIfInstalled(context, installedBuild)
-            val effectiveCurrent = maxOf(currentVersionCode, installedBuild)
             val connection = (URL(RELEASES_API).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 8000
@@ -79,7 +63,7 @@ object UpdateHelper {
                     val tag = release.optString("tag_name")
                     val match = Regex("^apk-build-(\\d+)$").find(tag) ?: continue
                     val buildNumber = match.groupValues[1].toIntOrNull() ?: continue
-                    if (buildNumber <= effectiveCurrent) continue
+                    if (buildNumber <= currentVersionCode) continue
 
                     val assets = release.optJSONArray("assets") ?: continue
                     var apkUrl: String? = null
@@ -130,9 +114,6 @@ object UpdateHelper {
             val updateDir = File(context.filesDir, "updates").apply { mkdirs() }
             val apkFile = File(updateDir, "tazieh-update-${info.buildNumber}.apk")
             val partialFile = File(updateDir, "tazieh-update-${info.buildNumber}.apk.part")
-            val installedNow = getInstalledVersion(context)
-            clearPendingIfInstalled(context, installedNow.buildNumber)
-            val pendingBuild = prefs(context).getInt(KEY_PENDING_BUILD, -1)
 
             // فقط فایل نهایی را قابل نصب می‌دانیم؛ فایل .part ممکن است ناقص باشد.
             // اگر APK ذخیره‌شده دیگر از نسخه نصب‌شده جدیدتر نیست، آن را دوباره نصب نکن.
@@ -143,11 +124,17 @@ object UpdateHelper {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode.toInt() else it.versionCode
                 }
                 val samePackage = archiveInfo?.packageName == context.packageName
-                if (archiveCode != null && samePackage && archiveCode > installed.buildNumber && archiveCode == info.buildNumber) {
-                    prefs(context).edit().putInt(KEY_PENDING_BUILD, info.buildNumber).apply()
+                if (archiveCode != null && samePackage && archiveCode > installed.buildNumber) {
+                    // ملاک نصب، نسخه واقعی داخل خود APK است؛ برچسب Release گیت‌هاب
+                    // فقط برای پیدا کردن بروزرسانی استفاده می‌شود و ممکن است با
+                    // versionCode داخلی APK قدیمی/متفاوت باشد.
                     onProgress(100)
                     withContext(Dispatchers.Main) { installApk(context, apkFile) }
                     return@runCatching
+                }
+                if (archiveCode != null && samePackage && archiveCode <= installed.buildNumber) {
+                    apkFile.delete()
+                    throw IllegalStateException("این APK از نسخه نصب‌شده جدیدتر نیست؛ بروزرسانی متوقف شد.")
                 }
                 apkFile.delete()
             }
@@ -198,20 +185,28 @@ object UpdateHelper {
                 throw IllegalStateException("ذخیره فایل APK نهایی ناموفق بود")
             }
 
-            // خود APK را هم بررسی کن تا tag گیت‌هاب با versionCode واقعی APK
-            // یکی باشد؛ از نصب/تکرار یک APK با شماره نسخه نادرست جلوگیری می‌کند.
-            val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                ?: run { apkFile.delete(); throw IllegalStateException("نسخه APK قابل شناسایی نیست") }
-            val archiveCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
-            if (archiveInfo.packageName != context.packageName || archiveCode != info.buildNumber) {
+            // قبل از نصب، نسخه واقعی داخل APK را بررسی می‌کنیم.
+            // ملاک versionCode خود APK است، نه فقط شماره Release گیت‌هاب.
+            val downloadedInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                ?: throw IllegalStateException("فایل دریافت‌شده یک APK معتبر نیست.")
+            val downloadedCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                downloadedInfo.longVersionCode.toInt()
+            } else {
+                downloadedInfo.versionCode
+            }
+            if (downloadedInfo.packageName != context.packageName) {
                 apkFile.delete()
-                throw IllegalStateException("شماره نسخه APK با نسخه بروزرسانی یکسان نیست؛ بروزرسانی متوقف شد.")
+                throw IllegalStateException("این APK مربوط به همین برنامه نیست؛ بروزرسانی متوقف شد.")
+            }
+            val installedAfterDownload = getInstalledVersion(context)
+            if (downloadedCode <= installedAfterDownload.buildNumber) {
+                apkFile.delete()
+                throw IllegalStateException(
+                    "نسخه APK دریافت‌شده (${downloadedCode}) از نسخه نصب‌شده (${installedAfterDownload.buildNumber}) جدیدتر نیست؛ بروزرسانی متوقف شد."
+                )
             }
 
-            prefs(context).edit().putInt(KEY_PENDING_BUILD, info.buildNumber).apply()
             onProgress(100)
-
             withContext(Dispatchers.Main) {
                 installApk(context, apkFile)
             }
