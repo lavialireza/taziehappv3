@@ -134,7 +134,9 @@ object UpdateHelper {
                 }
                 if (archiveCode != null && samePackage && archiveCode <= installed.buildNumber) {
                     apkFile.delete()
-                    throw IllegalStateException("این APK از نسخه نصب‌شده جدیدتر نیست؛ بروزرسانی متوقف شد.")
+                    throw IllegalStateException(
+                        "فایل APK موجود (نسخه $archiveCode) از نسخه نصب‌شده (${installed.buildNumber}) جدیدتر نیست؛ بروزرسانی متوقف شد."
+                    )
                 }
                 apkFile.delete()
             }
@@ -186,7 +188,9 @@ object UpdateHelper {
             }
 
             // قبل از نصب، نسخه واقعی داخل APK را بررسی می‌کنیم.
-            // ملاک versionCode خود APK است، نه فقط شماره Release گیت‌هاب.
+            // مهم: شماره tag گیت‌هاب فقط برای پیدا کردن Release است و الزاماً
+            // نباید با versionCode داخلی APK مقایسه شود. ملاک نصب فقط این است
+            // که APK متعلق به همین package و جدیدتر از نسخه نصب‌شده باشد.
             val downloadedInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
                 ?: throw IllegalStateException("فایل دریافت‌شده یک APK معتبر نیست.")
             val downloadedCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
