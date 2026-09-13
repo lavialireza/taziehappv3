@@ -1,5 +1,7 @@
 package com.example.bookapp.ui.screens
 
+import com.example.bookapp.BuildConfig
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -261,19 +263,21 @@ fun TextScreen(
                                 onClick = { moreExpanded = false; showTagDialog = true }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("کپی متن") },
-                            onClick = { moreExpanded = false; copyToClipboard(context, title, content) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("اشتراک‌گذاری") },
-                            onClick = { moreExpanded = false; shareText(context, title, content) }
-                        )
-                        if (sectionId != null) {
+                        if (!BuildConfig.PUBLIC_VIEWER) {
                             DropdownMenuItem(
-                                text = { Text("اشتراک‌گذاری لینک مستقیم این بخش") },
-                                onClick = { moreExpanded = false; shareSectionLink(context, title, sectionId) }
+                                text = { Text("کپی متن") },
+                                onClick = { moreExpanded = false; copyToClipboard(context, title, content) }
                             )
+                            DropdownMenuItem(
+                                text = { Text("اشتراک‌گذاری") },
+                                onClick = { moreExpanded = false; shareText(context, title, content) }
+                            )
+                            if (sectionId != null) {
+                                DropdownMenuItem(
+                                    text = { Text("اشتراک‌گذاری لینک مستقیم این بخش") },
+                                    onClick = { moreExpanded = false; shareSectionLink(context, title, sectionId) }
+                                )
+                            }
                         }
                         DropdownMenuItem(
                             text = { Text("گزارش اشکال در این متن") },
