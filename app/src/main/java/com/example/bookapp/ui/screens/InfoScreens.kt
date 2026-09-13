@@ -329,7 +329,7 @@ fun SettingsScreen(
                                 } else {
                                     downloadingAppUpdate = true
                                     downloadPercent = 0
-                                    appUpdateMessage = "نسخه جدید ${info.tagName} پیدا شد؛ دریافت داخل برنامه آغاز شد."
+                                    appUpdateMessage = "نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}\nنسخه جدید: ${info.tagName}\nدریافت نسخه جدید داخل برنامه آغاز شد."
                                     val downloadResult = com.example.bookapp.data.UpdateHelper.downloadAndInstall(
                                         context,
                                         info

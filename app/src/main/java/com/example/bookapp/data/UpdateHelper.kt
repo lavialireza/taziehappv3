@@ -99,8 +99,21 @@ object UpdateHelper {
         onProgress: (percent: Int) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val apkFile = File(context.cacheDir, "tazieh-update-${info.buildNumber}.apk")
-            if (apkFile.exists()) apkFile.delete()
+            // فایل کامل را در filesDir نگه می‌داریم تا اگر کاربر دوباره همان
+            // بروزرسانی را درخواست کرد، APK دوباره از اینترنت دانلود نشود.
+            val updateDir = File(context.filesDir, "updates").apply { mkdirs() }
+            val apkFile = File(updateDir, "tazieh-update-${info.buildNumber}.apk")
+            val partialFile = File(updateDir, "tazieh-update-${info.buildNumber}.apk.part")
+
+            // فقط فایل نهایی را قابل نصب می‌دانیم؛ فایل .part ممکن است ناقص باشد.
+            if (apkFile.exists() && apkFile.length() > 0L) {
+                onProgress(100)
+                withContext(Dispatchers.Main) {
+                    installApk(context, apkFile)
+                }
+                return@runCatching
+            }
+            if (partialFile.exists()) partialFile.delete()
 
             val connection = (URL(info.downloadUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -118,7 +131,7 @@ object UpdateHelper {
                 var received = 0L
                 var lastPercent = -1
                 connection.inputStream.use { input ->
-                    apkFile.outputStream().use { output ->
+                    partialFile.outputStream().use { output ->
                         val buffer = ByteArray(32 * 1024)
                         while (true) {
                             val count = input.read(buffer)
@@ -139,8 +152,12 @@ object UpdateHelper {
                 connection.disconnect()
             }
 
-            if (!apkFile.exists() || apkFile.length() == 0L) {
+            if (!partialFile.exists() || partialFile.length() == 0L) {
                 throw IllegalStateException("فایل APK کامل دریافت نشد")
+            }
+            if (apkFile.exists()) apkFile.delete()
+            if (!partialFile.renameTo(apkFile)) {
+                throw IllegalStateException("ذخیره فایل APK نهایی ناموفق بود")
             }
             onProgress(100)
 
