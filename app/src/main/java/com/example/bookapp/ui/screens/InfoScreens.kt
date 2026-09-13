@@ -311,30 +311,59 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             var checkingAppUpdate by remember { mutableStateOf(false) }
+            var downloadingAppUpdate by remember { mutableStateOf(false) }
+            var downloadPercent by remember { mutableStateOf(0) }
             var appUpdateMessage by remember { mutableStateOf<String?>(null) }
             Button(
                 onClick = {
+                    if (checkingAppUpdate || downloadingAppUpdate) return@Button
                     checkingAppUpdate = true
                     appUpdateMessage = null
                     scope.launch {
                         val result = onCheckAppUpdate()
                         checkingAppUpdate = false
-                        appUpdateMessage = result.fold(
+                        result.fold(
                             onSuccess = { info ->
                                 if (info == null) {
-                                    "برنامه شما به‌روز است. نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}"
+                                    appUpdateMessage = "برنامه شما به‌روز است. نسخه فعلی: ${com.example.bookapp.BuildConfig.VERSION_NAME}"
                                 } else {
-                                    com.example.bookapp.data.UpdateHelper.openDownloadPage(context, info.downloadUrl)
-                                    "نسخه جدید ${info.tagName} پیدا شد؛ صفحه دریافت باز شد."
+                                    downloadingAppUpdate = true
+                                    downloadPercent = 0
+                                    appUpdateMessage = "نسخه جدید ${info.tagName} پیدا شد؛ دریافت داخل برنامه آغاز شد."
+                                    val downloadResult = com.example.bookapp.data.UpdateHelper.downloadAndInstall(
+                                        context,
+                                        info
+                                    ) { percent ->
+                                        downloadPercent = percent
+                                    }
+                                    downloadingAppUpdate = false
+                                    downloadResult.onFailure { error ->
+                                        appUpdateMessage = error.message ?: "دریافت بروزرسانی ناموفق بود."
+                                    }
                                 }
                             },
-                            onFailure = { "بررسی بروزرسانی ناموفق بود: ${it.message ?: "اتصال اینترنت را بررسی کنید"}" }
+                            onFailure = {
+                                appUpdateMessage = "بررسی بروزرسانی ناموفق بود: ${it.message ?: "اتصال اینترنت را بررسی کنید"}"
+                            }
                         )
                     }
                 },
-                enabled = !checkingAppUpdate
+                enabled = !checkingAppUpdate && !downloadingAppUpdate
             ) {
-                Text(if (checkingAppUpdate) "در حال بررسی..." else "بررسی بروزرسانی برنامه")
+                Text(
+                    when {
+                        checkingAppUpdate -> "در حال بررسی..."
+                        downloadingAppUpdate -> "در حال دریافت ${downloadPercent}%..."
+                        else -> "بررسی بروزرسانی برنامه"
+                    }
+                )
+            }
+            if (downloadingAppUpdate) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { downloadPercent / 100f },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             appUpdateMessage?.let {
                 Spacer(Modifier.height(8.dp))

@@ -3,13 +3,17 @@ package com.example.bookapp.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** بررسی دستی بروزرسانی؛ استفاده عادی برنامه کاملاً آفلاین باقی می‌ماند. */
+/** بررسی دستی بروزرسانی و دریافت APK داخل خود برنامه؛ استفاده عادی برنامه آفلاین باقی می‌ماند. */
 object UpdateHelper {
     private const val REPO = "lavialireza/taziehappv3"
     private const val RELEASES_API = "https://api.github.com/repos/$REPO/releases?per_page=20"
@@ -55,8 +59,6 @@ object UpdateHelper {
                     var apkUrl: String? = null
                     var isReleaseApk = false
 
-                    // برای انتشار رسمی همیشه Release APK اولویت دارد؛
-                    // در buildهای آزمایشی اگر Release APK نبود، Debug APK استفاده می‌شود.
                     for (assetIndex in 0 until assets.length()) {
                         val asset = assets.getJSONObject(assetIndex)
                         if (asset.optString("name") == releaseAsset) {
@@ -87,7 +89,89 @@ object UpdateHelper {
         }
     }
 
-    fun openDownloadPage(context: Context, url: String) {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    /**
+     * APK را داخل cache خود برنامه دانلود می‌کند و پس از تکمیل، نصب سیستم را باز می‌کند.
+     * این روش به مرورگر وابسته نیست و تا پایان دریافت صبر می‌کند.
+     */
+    suspend fun downloadAndInstall(
+        context: Context,
+        info: UpdateInfo,
+        onProgress: (percent: Int) -> Unit = {}
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val apkFile = File(context.cacheDir, "tazieh-update-${info.buildNumber}.apk")
+            if (apkFile.exists()) apkFile.delete()
+
+            val connection = (URL(info.downloadUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+                setRequestProperty("Accept", "application/octet-stream")
+                setRequestProperty("User-Agent", "Tazieh-Android-Updater")
+            }
+            try {
+                if (connection.responseCode !in 200..299) {
+                    throw IllegalStateException("دریافت APK ناموفق بود: ${connection.responseCode}")
+                }
+                val total = connection.contentLengthLong
+                var received = 0L
+                var lastPercent = -1
+                connection.inputStream.use { input ->
+                    apkFile.outputStream().use { output ->
+                        val buffer = ByteArray(32 * 1024)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                            received += count
+                            if (total > 0) {
+                                val percent = ((received * 100L) / total).toInt().coerceIn(0, 100)
+                                if (percent != lastPercent) {
+                                    lastPercent = percent
+                                    onProgress(percent)
+                                }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                connection.disconnect()
+            }
+
+            if (!apkFile.exists() || apkFile.length() == 0L) {
+                throw IllegalStateException("فایل APK کامل دریافت نشد")
+            }
+            onProgress(100)
+
+            withContext(Dispatchers.Main) {
+                installApk(context, apkFile)
+            }
+        }
+    }
+
+    private fun installApk(context: Context, apkFile: File) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            throw IllegalStateException("اجازه نصب برنامه از این منبع فعال نیست؛ پس از فعال‌سازی دوباره بروزرسانی را بزنید.")
+        }
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            apkFile
+        )
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(intent)
     }
 }
