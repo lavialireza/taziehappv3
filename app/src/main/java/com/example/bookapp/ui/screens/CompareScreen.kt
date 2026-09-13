@@ -56,45 +56,57 @@ fun CompareScreen(
         )
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Text("نوع مقایسه", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(mode == "role", { mode = "role"; compared = false }, label = { Text("مقایسه نقش‌ها") })
-                FilterChip(mode == "section", { mode = "section"; compared = false }, label = { Text("مقایسه بخش‌ها") })
-            }
-            Spacer(Modifier.height(12.dp))
-
-            if (mode == "role") {
-                CompareDropdown("نقش اول", roleA, roles, { it.title }) { roleA = it; compared = false }
-                Spacer(Modifier.height(8.dp))
-                CompareDropdown("نقش دوم", roleB, roles, { it.title }) { roleB = it; compared = false }
-            } else {
-                CompareDropdown("بخش اول", sectionA, sections, { "${it.roleTitle} ← ${it.section.title}" }) { sectionA = it; compared = false }
-                Spacer(Modifier.height(8.dp))
-                CompareDropdown("بخش دوم", sectionB, sections, { "${it.roleTitle} ← ${it.section.title}" }) { sectionB = it; compared = false }
-            }
-
-            Button(
-                onClick = { compared = true },
-                enabled = if (mode == "role") roleA != null && roleB != null && roleA?.id != roleB?.id else sectionA != null && sectionB != null && sectionA?.section?.id != sectionB?.section?.id,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-            ) { Text("نمایش مقایسه") }
-
-            if (compared) {
-                if (mode == "role" && roleA != null && roleB != null) {
-                    CompareRoleColumns(roleA!!, roleB!!, roleSections[roleA!!.id].orEmpty(), roleSections[roleB!!.id].orEmpty())
-                } else if (mode == "section" && sectionA != null && sectionB != null) {
-                    CompareSectionColumns(sectionA!!, sectionB!!)
+            if (!compared) {
+                Text("نوع مقایسه", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(mode == "role", { mode = "role"; compared = false }, label = { Text("مقایسه نقش‌ها") })
+                    FilterChip(mode == "section", { mode = "section"; compared = false }, label = { Text("مقایسه بخش‌ها") })
                 }
-            } else {
+                Spacer(Modifier.height(12.dp))
+                if (mode == "role") {
+                    CompareDropdown("نقش اول", roleA, roles, { it.title }) { roleA = it; compared = false }
+                    Spacer(Modifier.height(8.dp))
+                    CompareDropdown("نقش دوم", roleB, roles, { it.title }) { roleB = it; compared = false }
+                } else {
+                    CompareDropdown("بخش اول", sectionA, sections, { "${it.roleTitle} ← ${it.section.title}" }) { sectionA = it; compared = false }
+                    Spacer(Modifier.height(8.dp))
+                    CompareDropdown("بخش دوم", sectionB, sections, { "${it.roleTitle} ← ${it.section.title}" }) { sectionB = it; compared = false }
+                }
+
+                Button(
+                    onClick = { compared = true },
+                    enabled = if (mode == "role") roleA != null && roleB != null && roleA?.id != roleB?.id else sectionA != null && sectionB != null && sectionA?.section?.id != sectionB?.section?.id,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                ) { Text("نمایش مقایسه") }
                 Text("دو مورد را خودتان انتخاب کنید و سپس «نمایش مقایسه» را بزنید.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { compared = false }) {
+                        Text("تغییر انتخاب")
+                    }
+                }
+                if (mode == "role" && roleA != null && roleB != null) {
+                    CompareRoleColumns(
+                        roleA!!,
+                        roleB!!,
+                        roleSections[roleA!!.id].orEmpty(),
+                        roleSections[roleB!!.id].orEmpty(),
+                        Modifier.weight(1f)
+                    )
+                } else if (mode == "section" && sectionA != null && sectionB != null) {
+                    CompareSectionColumns(sectionA!!, sectionB!!, Modifier.weight(1f))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CompareRoleColumns(roleA: RoleEntity, roleB: RoleEntity, sectionsA: List<SectionEntity>, sectionsB: List<SectionEntity>) {
-    Column(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+private fun CompareRoleColumns(roleA: RoleEntity, roleB: RoleEntity, sectionsA: List<SectionEntity>, sectionsB: List<SectionEntity>, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(8.dp)) {
             Text(roleA.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             sectionsA.forEach { section ->
@@ -116,8 +128,8 @@ private fun CompareRoleColumns(roleA: RoleEntity, roleB: RoleEntity, sectionsA: 
 }
 
 @Composable
-private fun CompareSectionColumns(a: CompareSectionItem, b: CompareSectionItem) {
-    Row(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+private fun CompareSectionColumns(a: CompareSectionItem, b: CompareSectionItem, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(8.dp)) {
             Text(a.roleTitle, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             Text(a.section.title, style = MaterialTheme.typography.titleMedium)

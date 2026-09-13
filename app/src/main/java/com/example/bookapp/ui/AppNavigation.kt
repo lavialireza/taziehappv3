@@ -203,7 +203,7 @@ fun AppNavigation(
             MainMenuScreen(
                 randomVerse = randomVerse,
                 recentItems = recentItems,
-                onOpenTaziehList = { navController.navigate(if (publicViewer) ROUTE_VIEWER_CONTENT else ROUTE_FIELDS) },
+                onOpenTaziehList = { navController.navigate(ROUTE_FIELDS) },
                 onOpenSearch = { navController.navigate(ROUTE_SEARCH) },
                 onOpenBookmarks = { navController.navigate(ROUTE_BOOKMARKS) },
                 onOpenNotes = { navController.navigate(ROUTE_NOTES) },
@@ -770,7 +770,7 @@ fun AppNavigation(
             )
         }
 
-        if (!publicViewer) composable(ROUTE_FIELDS) {
+        composable(ROUTE_FIELDS) {
             var fields by remember { mutableStateOf(emptyList<FieldCatalogItem>()) }
             LaunchedEffect(Unit) {
                 val allFields = db.fieldDao().getAll()
